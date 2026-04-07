@@ -75,6 +75,9 @@ artifacts/
 !README.md
 !README.ru.md
 !ReadMe.txt
+!docs/
+!docs/releases/
+!docs/releases/*.md
 
 # Chutzpah Test files
 _Chutzpah*

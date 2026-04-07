@@ -16,7 +16,7 @@ namespace
    const CDialogTextTranslation g_vDialogTranslations[] =
    {
       { IDD_ABOUTBOX, _T("About PGN Spy"), _T("О программе PGN Spy") },
-      { IDD_ABOUTBOX, _T("Version 1.1"), _T("Версия 1.1") },
+      { IDD_ABOUTBOX, _T("Version 1.2.0"), _T("Версия 1.2.0") },
       { IDD_ABOUTBOX, _T("Copyright (C) 2017 Michael J. Gleason"), _T("Copyright (C) 2017 Michael J. Gleason") },
       { IDD_ABOUTBOX, _T("OK"), _T("ОК") },
 

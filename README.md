@@ -2,9 +2,11 @@
 
 PGN Spy is a desktop tool for analyzing chess game collections in PGN format with a UCI-compatible engine. It helps investigate engine correlation, move quality, and related statistics across one game or a large database.
 
-This repository contains a modernized Windows build of the original project. The current version adds Windows 11 support, a bilingual English/Russian interface, annotated PGN export, and a more reliable analysis workflow.
+This repository contains a modernized Windows build of the original project. The current release line is `v1.2.0`, with Windows 11 support, a bilingual English/Russian interface, annotated PGN export, and a more reliable analysis workflow.
 
 Russian version: [README.ru.md](README.ru.md)
+
+The recommended way to download the Windows build is from the GitHub `Releases` section.
 
 ## What It Does
 
@@ -71,7 +73,7 @@ The application supports English and Russian. Use the `Language` selector in the
 
 ## History
 
-Compared with the original release, this version adds:
+Compared with the original release, `v1.2.0` adds:
 
 - support for modern UCI handshake behavior and Stockfish 18
 - Windows 11-ready manifest and DPI-aware UI scaling
