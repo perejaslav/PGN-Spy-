@@ -27,6 +27,7 @@
 #endif
 
 #include "resource.h"		// main symbols
+#include "Localization.h"
 
 
 // CPGNSpyApp:
@@ -56,3 +57,4 @@ CString GetConverterFilePath();
 CString GetAnalyserFilePath();
 CString GetConvertedPGNFilePath();
 CString GetTemporaryPGNFilePath(int i);
+CString GetDefaultAnalysisResultsFilePath(const CString& sInputFilePath);

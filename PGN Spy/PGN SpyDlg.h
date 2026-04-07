@@ -51,6 +51,7 @@ protected:
 public:
    CString m_sInputFile;
    CEngineSettings m_vEngineSettings;
+   CComboBox m_vLanguage;
    afx_msg void OnBnClickedBrowseanalyse();
    afx_msg void OnBnClickedBrowseengine();
    afx_msg void OnBnClickedRunanalysis();
@@ -70,4 +71,5 @@ public:
    afx_msg void OnBnClickedLosingthresholdhelp();
    afx_msg void OnBnClickedNumvariationshelp();
    afx_msg void OnBnClickedLoadresults();
+   afx_msg void OnCbnSelchangeLanguage();
 };

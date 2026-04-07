@@ -3,7 +3,7 @@
 // Copyright(c) 2016 Michael J. Gleason
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files(the "Software"), to deal
+// of this software and associated documentation files(the _T("Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
 // copies of the Software, and to permit persons to whom the Software is
@@ -12,7 +12,7 @@
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
 // 
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// THE SOFTWARE IS PROVIDED _T("AS IS"), WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
@@ -26,6 +26,7 @@
 #include "Analysis.h"
 #include "AnalysisDlg.h"
 #include "ResultsDlg.h"
+#include "Localization.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -70,11 +71,17 @@ END_MESSAGE_MAP()
 BOOL CAboutDlg::OnInitDialog()
 {
    CDialog::OnInitDialog();
+   ApplyDialogTranslations(this, IDD_ABOUTBOX);
 
-   m_sCredits = "This project would have been much more difficult without the contributions of several different people.\r\n"
-                "I would especially like to thank David Barnes for the use of uci-analyser and pgn-extract,\r\n"
-                "Ben Bryant of firstobject.com for the use of CMarkup,\r\n"
-                "and LegoPirateSenior and others who gave advice and/or contributed to testing.\r\n";
+   m_sCredits = Loc(
+      _T("This project would have been much more difficult without the contributions of several different people.\r\n")
+      _T("I would especially like to thank David Barnes for the use of uci-analyser and pgn-extract,\r\n")
+      _T("Ben Bryant of firstobject.com for the use of CMarkup,\r\n")
+      _T("and LegoPirateSenior and others who gave advice and/or contributed to testing.\r\n"),
+      _T("Этот проект было бы значительно сложнее реализовать без помощи многих людей.\r\n")
+      _T("Особая благодарность David Barnes за uci-analyser и pgn-extract,\r\n")
+      _T("Ben Bryant с firstobject.com за библиотеку CMarkup,\r\n")
+      _T("а также LegoPirateSenior и другим участникам, помогавшим советами и тестированием.\r\n"));
    UpdateData(FALSE);
 
    return TRUE;  // return TRUE  unless you set the focus to a control
@@ -89,7 +96,7 @@ BOOL CAboutDlg::OnInitDialog()
 
 CPGNSpyDlg::CPGNSpyDlg(CWnd* pParent /*=NULL*/)
    : CDialog(CPGNSpyDlg::IDD, pParent)
-   , m_sInputFile("")
+   , m_sInputFile(_T(""))
 {
    m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -114,6 +121,7 @@ void CPGNSpyDlg::DoDataExchange(CDataExchange* pDX)
    DDV_MinMaxInt(pDX, m_vEngineSettings.m_iHashSize, 1, 8192);
    DDX_Text(pDX, IDC_VARIATIONS, m_vEngineSettings.m_iNumVariations);
    DDV_MinMaxInt(pDX, m_vEngineSettings.m_iNumVariations, 1, 10);
+   DDX_Control(pDX, IDC_LANGUAGE, m_vLanguage);
 }
 
 BEGIN_MESSAGE_MAP(CPGNSpyDlg, CDialog)
@@ -138,6 +146,7 @@ BEGIN_MESSAGE_MAP(CPGNSpyDlg, CDialog)
    ON_BN_CLICKED(IDC_LOSINGTHRESHOLDHELP, &CPGNSpyDlg::OnBnClickedLosingthresholdhelp)
    ON_BN_CLICKED(IDC_NUMVARIATIONSHELP, &CPGNSpyDlg::OnBnClickedNumvariationshelp)
    ON_BN_CLICKED(IDC_LOADRESULTS, &CPGNSpyDlg::OnBnClickedLoadresults)
+   ON_CBN_SELCHANGE(IDC_LANGUAGE, &CPGNSpyDlg::OnCbnSelchangeLanguage)
 END_MESSAGE_MAP()
 
 
@@ -147,7 +156,7 @@ BOOL CPGNSpyDlg::OnInitDialog()
 {
    CDialog::OnInitDialog();
 
-   // Add "About..." menu item to system menu.
+   // Add _T("About...") menu item to system menu.
 
    // IDM_ABOUTBOX must be in the system command range.
    ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
@@ -156,8 +165,7 @@ BOOL CPGNSpyDlg::OnInitDialog()
    CMenu* pSysMenu = GetSystemMenu(FALSE);
    if (pSysMenu != NULL)
    {
-      CString strAboutMenu;
-      strAboutMenu.LoadString(IDS_ABOUTBOX);
+      CString strAboutMenu = GetAboutMenuText();
       if (!strAboutMenu.IsEmpty())
       {
          pSysMenu->AppendMenu(MF_SEPARATOR);
@@ -173,6 +181,8 @@ BOOL CPGNSpyDlg::OnInitDialog()
    if (!m_vEngineSettings.LoadSettingsFromRegistry())
       m_vEngineSettings = CEngineSettings(); //failed to load, so restore defaults
    UpdateData(FALSE);
+   PopulateLanguageCombo(m_vLanguage, GetCurrentAppLanguage());
+   ApplyDialogTranslations(this, IDD_PGNSPY_DIALOG);
 
    return TRUE;  // return TRUE  unless you set the focus to a control
 }
@@ -230,7 +240,10 @@ void CPGNSpyDlg::OnBnClickedBrowseanalyse()
 {
    if (!UpdateData())
       return;
-   CFileDialog vFileDialog(TRUE,"pgn","*.pgn",OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_DONTADDTORECENT,"Portable Game Notation file (*.pgn)|*.pgn|All files (*.*)|*.*||",this);
+   CFileDialog vFileDialog(TRUE, _T("pgn"), _T("*.pgn"), OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_DONTADDTORECENT,
+      Loc(_T("Portable Game Notation file (*.pgn)|*.pgn|All files (*.*)|*.*||"),
+         _T("Файлы Portable Game Notation (*.pgn)|*.pgn|Все файлы (*.*)|*.*||")),
+      this);
    if (vFileDialog.DoModal() != IDOK)
       return;
    m_sInputFile = vFileDialog.GetPathName();
@@ -241,7 +254,10 @@ void CPGNSpyDlg::OnBnClickedBrowseengine()
 {
    if (!UpdateData())
       return;
-   CFileDialog vFileDialog(TRUE,"exe","*.exe",OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_DONTADDTORECENT,"Chess Engines (*.exe)|*.exe|All files (*.*)|*.*||",this);
+   CFileDialog vFileDialog(TRUE, _T("exe"), _T("*.exe"), OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_DONTADDTORECENT,
+      Loc(_T("Chess Engines (*.exe)|*.exe|All files (*.*)|*.*||"),
+         _T("Шахматные движки (*.exe)|*.exe|Все файлы (*.*)|*.*||")),
+      this);
    if (vFileDialog.DoModal() != IDOK)
       return;
    m_vEngineSettings.m_sEnginePath = vFileDialog.GetPathName();
@@ -254,12 +270,12 @@ bool CPGNSpyDlg::ConvertFileForAnalysis(CString OUT &sConvertedFile)
    CFile vFile;
    if (!vFile.Open(sConvertedFile, CFile::modeCreate | CFile::modeWrite))
    {
-      MessageBox("Failed to create temporary output file.","PGN Spy", MB_ICONEXCLAMATION);
+      MessageBox(Loc(_T("Failed to create temporary output file."), _T("Не удалось создать временный выходной файл.")), GetAppTitle(), MB_ICONEXCLAMATION);
       return false;
    }
    vFile.Close();
 
-   CString sCommandLine = " -Wuci \"-o" + sConvertedFile + "\" \"" + m_sInputFile + "\"";
+   CString sCommandLine = _T(" -Wuci \"-o") + sConvertedFile + _T("\" \"") + m_sInputFile + _T("\"");
 
    PROCESS_INFORMATION vProcessInfo;
    STARTUPINFO vStartupInfo = {0};
@@ -269,7 +285,12 @@ bool CPGNSpyDlg::ConvertFileForAnalysis(CString OUT &sConvertedFile)
    if (!CreateProcess(GetConverterFilePath(), sCommandLine.GetBuffer(), NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS, NULL, NULL, &vStartupInfo, &vProcessInfo))
    {
       sCommandLine.ReleaseBuffer();
-      MessageBox("Failed to launch converter.  Please ensure it is in the same folder as PGN Spy, with the file name \"pgn-extract.exe\".","PGN Spy", MB_ICONEXCLAMATION);
+      MessageBox(
+         Loc(
+            _T("Failed to launch converter. Please ensure it is in the same folder as PGN Spy, with the file name \"pgn-extract.exe\"."),
+            _T("Не удалось запустить конвертер. Убедитесь, что он находится в той же папке, что и PGN Spy, и называется \"pgn-extract.exe\".")),
+         GetAppTitle(),
+         MB_ICONEXCLAMATION);
       return false;
    }
    sCommandLine.ReleaseBuffer();
@@ -288,38 +309,42 @@ void CPGNSpyDlg::OnBnClickedRunanalysis()
    //validate file paths
    if (!PathFileExists(m_sInputFile))
    {
-      MessageBox("The specified input file does not exist.", "PGN Spy", MB_ICONEXCLAMATION);
+      MessageBox(Loc(_T("The specified input file does not exist."), _T("Указанный входной файл не существует.")), GetAppTitle(), MB_ICONEXCLAMATION);
       return;
    }
 
    CString sTemporaryFile;
    if (!ConvertFileForAnalysis(sTemporaryFile))
    {
-      MessageBox("Failed to convert the pgn file into the appropriate format for analysis.","PGN Spy", MB_ICONEXCLAMATION);
+      MessageBox(Loc(_T("Failed to convert the PGN file into the appropriate format for analysis."), _T("Не удалось преобразовать PGN-файл в формат, подходящий для анализа.")), GetAppTitle(), MB_ICONEXCLAMATION);
       return;
    }
 
    //file is converted; now process it
    CAnalysisDlg vAnalyserDlg;
    vAnalyserDlg.m_sConvertedPGN = sTemporaryFile;
+   vAnalyserDlg.m_sInputFilePath = m_sInputFile;
    vAnalyserDlg.m_vEngineSettings = m_vEngineSettings;
    vAnalyserDlg.DoModal();
 
    //delete temporary file
    DeleteFile(sTemporaryFile);
 
-   if (vAnalyserDlg.m_avGames.GetSize() == 0)
-   {
-      MessageBox("No results to display.", "PGN Spy", MB_ICONEXCLAMATION);
-      return;
-   }
-   if (vAnalyserDlg.m_bCancelled)
+   if (!vAnalyserDlg.m_bShowResults)
       return;
    
    //now launch the window to process and display the results
    CResultsDlg vResultsDlg;
    vResultsDlg.m_avGames.Copy(vAnalyserDlg.m_avGames);
    vResultsDlg.m_vEngineSettings = m_vEngineSettings;
+   if (!vAnalyserDlg.m_sSavedResultsPath.IsEmpty())
+      vResultsDlg.m_sSavedResultsPath = Loc(_T("Saved analysis XML: "), _T("Сохранённый XML анализа: ")) + vAnalyserDlg.m_sSavedResultsPath;
+   else if (!vAnalyserDlg.m_sAutoSaveError.IsEmpty())
+      vResultsDlg.m_sSavedResultsPath = vAnalyserDlg.m_sAutoSaveError;
+   if (!vAnalyserDlg.m_sSavedPGNPath.IsEmpty())
+      vResultsDlg.m_sSavedPGNPath = Loc(_T("Saved annotated PGN: "), _T("Сохранённый аннотированный PGN: ")) + vAnalyserDlg.m_sSavedPGNPath;
+   else if (!vAnalyserDlg.m_sAutoSavePGNError.IsEmpty())
+      vResultsDlg.m_sSavedPGNPath = vAnalyserDlg.m_sAutoSavePGNError;
    vResultsDlg.DoModal();
 }
 
@@ -329,9 +354,9 @@ void CPGNSpyDlg::OnBnClickedSavesettings()
       return;
 
    if (!m_vEngineSettings.SaveSettingsToRegistry())
-      MessageBox("Failed to save settings.", "PGN Spy", MB_ICONEXCLAMATION);
+      MessageBox(Loc(_T("Failed to save settings."), _T("Не удалось сохранить настройки.")), GetAppTitle(), MB_ICONEXCLAMATION);
    else
-      MessageBox("Settings saved.", "PGN Spy", MB_ICONINFORMATION);
+      MessageBox(Loc(_T("Settings saved."), _T("Настройки сохранены.")), GetAppTitle(), MB_ICONINFORMATION);
 }
 
 bool CPGNSpyDlg::ValidateSettings()
@@ -341,13 +366,13 @@ bool CPGNSpyDlg::ValidateSettings()
 
    if (m_vEngineSettings.m_iMinTime > m_vEngineSettings.m_iMaxTime)
    {
-      MessageBox("The minimum time for analysis must not exceed the maximum time.", "PGN Spy", MB_ICONEXCLAMATION);
+      MessageBox(Loc(_T("The minimum time for analysis must not exceed the maximum time."), _T("Минимальное время анализа не должно превышать максимальное.")), GetAppTitle(), MB_ICONEXCLAMATION);
       return false;
    }
 
    if (!PathFileExists(m_vEngineSettings.m_sEnginePath))
    {
-      MessageBox("The specified engine does not exist.", "PGN Spy", MB_ICONEXCLAMATION);
+      MessageBox(Loc(_T("The specified engine does not exist."), _T("Указанный движок не существует.")), GetAppTitle(), MB_ICONEXCLAMATION);
       return false;
    }
 
@@ -355,7 +380,7 @@ bool CPGNSpyDlg::ValidateSettings()
    GetSystemInfo(&vSysInfo);
    if (m_vEngineSettings.m_iNumThreads > (int)vSysInfo.dwNumberOfProcessors)
    {
-      MessageBox("You have entered more threads than the number of processors present in your system.", "PGN Spy", MB_ICONEXCLAMATION);
+      MessageBox(Loc(_T("You have entered more threads than the number of processors present in your system."), _T("Указано больше потоков, чем доступно процессоров в системе.")), GetAppTitle(), MB_ICONEXCLAMATION);
       return false;
    }
 
@@ -364,131 +389,130 @@ bool CPGNSpyDlg::ValidateSettings()
 
 void CPGNSpyDlg::OnBnClickedHelpplayer()
 {
-   CString sMessage = "If a player name is entered, statistics for the specified player will be reported.  Games excluding "
-                      "this player will be ignored.\n\nIf no player name is entered, aggregate statistics for all players "
-                      "will be reported.  This is useful for establishing baselines.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = Loc(
+      _T("If a player name is entered, statistics for the specified player will be reported. Games excluding this player will be ignored.\n\nIf no player name is entered, aggregate statistics for all players will be reported. This is useful for establishing baselines."),
+      _T("Если указано имя игрока, статистика будет рассчитана только для него. Партии без этого игрока будут исключены.\n\nЕсли имя не указано, будет показана суммарная статистика по всем игрокам. Это удобно для построения базового уровня."));
+   MessageBox(sMessage, GetAppTitle(), MB_ICONINFORMATION);
 }
 
 void CPGNSpyDlg::OnBnClickedHelpdepth()
 {
-   CString sMessage = "Specify the minimum number of plies to search for each position.  A ply is half of a move; i.e. "
-                      "one white move, or one black move.\n\nIf this depth is not reached within the minimum time, the "
-                      "search will continue until either this depth is reached or the maximum time has been reached.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = Loc(
+      _T("Specify the minimum number of plies to search for each position. A ply is half a move, that is one white move or one black move.\n\nIf this depth is not reached within the minimum time, the search will continue until either this depth is reached or the maximum time has been reached."),
+      _T("Укажите минимальную глубину поиска в полуходах для каждой позиции. Полуход - это ход одной стороны.\n\nЕсли эта глубина не достигнута за минимальное время, поиск продолжится, пока глубина не будет достигнута либо не истечёт максимальное время."));
+   MessageBox(sMessage, GetAppTitle(), MB_ICONINFORMATION);
 }
 
 void CPGNSpyDlg::OnBnClickedHelpbookdepth()
 {
-   CString sMessage = "Specify the number of opening moves to exclude.  A move consists of one white move and one black "
-                      "move, so entering five means ignoring five moves for each side.\n"
-                      "\n"
-                      "Opening moves are better excluded from calculations, as a player who has studied an opening may "
-                      "well be able to reproduce main-line moves from memory, without the use of an engine.  Also, static "
-                      "resources such as books and databases are usually allowed in correspondence chess, so even a weak "
-                      "player may legitimately play main-line moves early in the game without the use of an engine.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = Loc(
+      _T("Specify the number of opening moves to exclude. A move consists of one white move and one black move, so entering five means ignoring five moves for each side.\n\nOpening moves are better excluded from calculations, as a player who has studied an opening may reproduce main-line moves from memory without using an engine. Static resources such as books and databases are also usually allowed in correspondence chess, so even a weaker player may legitimately play main-line moves early in the game without engine assistance."),
+      _T("Укажите число дебютных ходов, которые нужно исключить. Один ход включает ход белых и ход чёрных, поэтому значение 5 означает исключение пяти ходов каждой стороны.\n\nДебют обычно лучше исключать из расчётов: подготовленный игрок может воспроизводить основные варианты по памяти без помощи движка. Кроме того, в заочных шахматах книги и базы обычно разрешены, поэтому даже более слабый игрок может корректно играть теоретические ходы в начале партии без подсказок движка."));
+   MessageBox(sMessage, GetAppTitle(), MB_ICONINFORMATION);
 }
 
 void CPGNSpyDlg::OnBnClickedHelpthreads()
 {
-   CString sMessage = "Specify the number of threads to use for analysis.\n\nTo aid consistency of results, the engine "
-                      "will only be allowed to use a single thread for each position.  However, if there are multiple "
-                      "games being analysed on a multi-core machine, several games may be processed simultaneously to "
-                      "enable analysis to be completed more quickly.\n\nNote: if you leave this at the default value, "
-                      "this will monopolise all available processing power.  If you want to be able to use your computer "
-                      "for other purposes while this is running, it is recommended that you decrease this value.\n"
-                      "\n"
-                      "Also note that the architecture of chess engines is not usually very well suited to hyperthreading.  "
-                      "It is therefore recommended that this not be set to a number larger than the number of physical cores "
-                      "in your machine.\n"
-                      "\n";
-                      "This number can be adjusted while analysis is running.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = Loc(
+      _T("Specify the number of threads to use for analysis.\n\nTo improve consistency, the engine is limited to a single thread per analysed position. If several games are analysed on a multi-core machine, multiple games may still be processed simultaneously to finish the analysis faster.\n\nIf you leave this value at the default, PGN Spy may use all available CPU resources. Reduce it if you want to keep the computer responsive for other tasks.\n\nChess engines also usually benefit less from hyper-threading than from real cores, so it is recommended not to exceed the number of physical cores.\n\nThis value can be adjusted while analysis is running."),
+      _T("Укажите число потоков для анализа.\n\nДля устойчивости результатов движок использует только один поток на каждую анализируемую позицию. Однако на многоядерной системе несколько партий могут обрабатываться параллельно, что ускоряет общий анализ.\n\nЕсли оставить значение по умолчанию, PGN Spy может занять все доступные вычислительные ресурсы. Если во время анализа вы хотите пользоваться компьютером, это значение лучше уменьшить.\n\nТакже учтите, что шахматные движки обычно хуже масштабируются на hyper-threading, чем на реальные ядра. Поэтому не рекомендуется задавать значение выше числа физических ядер.\n\nЭто значение можно менять во время анализа."));
+   MessageBox(sMessage, GetAppTitle(), MB_ICONINFORMATION);
 }
 
 void CPGNSpyDlg::OnBnClickedHelpmintime()
 {
-   CString sMessage = "Specify the minimum time (in milliseconds) to spend analysing each position.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = Loc(_T("Specify the minimum time in milliseconds to spend analysing each position."), _T("Укажите минимальное время в миллисекундах, отводимое на анализ каждой позиции."));
+   MessageBox(sMessage, GetAppTitle(), MB_ICONINFORMATION);
 }
 
 void CPGNSpyDlg::OnBnClickedHelpmaxtime()
 {
-   CString sMessage = "Specify the maximum time (in milliseconds) to spend analysing each position.  This will force "
-                      "analysis to stop, even if the minimum search depth has not yet been reached.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = Loc(
+      _T("Specify the maximum time in milliseconds to spend analysing each position. Analysis will stop when this limit is reached even if the minimum search depth has not yet been achieved."),
+      _T("Укажите максимальное время в миллисекундах, отводимое на анализ каждой позиции. По достижении этого лимита анализ будет остановлен, даже если минимальная глубина поиска ещё не достигнута."));
+   MessageBox(sMessage, GetAppTitle(), MB_ICONINFORMATION);
 }
 
 void CPGNSpyDlg::OnBnClickedHelpphashsize()
 {
-   CString sMessage = "Specify the size of the engine's memory cache (in MB).\n"
-                      "\n"
-                      "See documentation for your engine for optimal values for this setting.\n"
-                      "\n"
-                      "Note: if using multiple threads, remember that each thread will have its own hash.  As this is "
-                      "stored in memory, it is recommended that you ensure that the total hash size for threads does "
-                      "not exceed the RAM that is physically present on your machine; you should also leave sufficient "
-                      "for the operating system and any other software currently running.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = Loc(
+      _T("Specify the size of the engine hash in megabytes.\n\nSee the engine documentation for suitable values.\n\nIf several threads are used, remember that each thread has its own hash. The total hash allocation should not exceed the physical RAM available in the machine, and enough memory should remain available for Windows and other running applications."),
+      _T("Укажите размер hash-памяти движка в мегабайтах.\n\nРекомендуемые значения смотрите в документации к движку.\n\nПри использовании нескольких потоков у каждого потока будет собственный hash. Суммарный объём не должен превышать доступную физическую память, и часть памяти нужно оставить системе Windows и другим запущенным приложениям."));
+   MessageBox(sMessage, GetAppTitle(), MB_ICONINFORMATION);
 }
 
 void CPGNSpyDlg::OnBnClickedForcedmovehelp()
 {
-   CString sMessage = "For T1/T2/T3/etc. analysis, moves where the next-best move are evaluated to be worse than the "
-                      "move in question by more than the specified threshold will be excluded from analysis.  This avoids "
-                      "flagging obvious recaptures and other moves that a strong player would usually be expected to find.  "
-                      "Values are in centipawns.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = Loc(
+      _T("For T1/T2/T3 and similar statistics, moves where the next-best move is evaluated as worse than the played move by more than the specified threshold are excluded. This avoids flagging obvious recaptures and other moves that a strong player would normally find. Values are given in centipawns."),
+      _T("Для показателей T1/T2/T3 и т. п. из анализа исключаются ходы, у которых следующий по силе ход хуже сыгранного более чем на указанный порог. Это позволяет не считать очевидные взятия и другие естественные ходы, которые сильный игрок обычно находит без труда. Значения задаются в сотых долях пешки."));
+   MessageBox(sMessage, GetAppTitle(), MB_ICONINFORMATION);
 }
 
 void CPGNSpyDlg::OnBnClickedUnclearpositionhelp()
 {
-   CString sMessage = "For T1/T2/T3/etc. analysis, moves where the next-best move is evaluated to be worse than the "
-                      "first-choice move by more than the specified threshold will be excluded from analysis.  Values "
-                      "are in centipawns.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = Loc(
+      _T("For T1/T2/T3 and similar statistics, positions where the next-best move is worse than the engine's first choice by more than the specified threshold are excluded. Values are given in centipawns."),
+      _T("Для показателей T1/T2/T3 и т. п. из анализа исключаются позиции, в которых следующий по силе ход хуже первого выбора движка более чем на указанный порог. Значения задаются в сотых долях пешки."));
+   MessageBox(sMessage, GetAppTitle(), MB_ICONINFORMATION);
 }
 
 void CPGNSpyDlg::OnBnClickedEqualpositionhelp()
 {
-   CString sMessage = "Positions where neither side is ahead by more than the specified threshold will be analysed.  "
-                      "This is to help detect cheaters who stop cheating once they are ahead.\n\nThese results will be "
-                      "reported separately from those for losing positions.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = Loc(
+      _T("Positions where neither side is better by more than the specified threshold are analysed. This helps detect players who stop using assistance once they obtain an advantage.\n\nThese results are reported separately from losing positions."),
+      _T("Анализируются позиции, в которых перевес ни одной из сторон не превышает указанный порог. Это помогает выявлять игроков, которые перестают пользоваться подсказками, получив преимущество.\n\nЭти результаты выводятся отдельно от проигранных позиций."));
+   MessageBox(sMessage, GetAppTitle(), MB_ICONINFORMATION);
 }
 
 void CPGNSpyDlg::OnBnClickedLosingthresholdhelp()
 {
-   CString sMessage = "Positions where the player behind by more than the equal position threshold and less than the "
-                      "losing position threshold will be analysed.  This is to help detect cheaters who only cheat once "
-                      "they start to lose.\n\nThese results will be reported separately from those for equal positions.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = Loc(
+      _T("Positions where the side to move is worse than the equal-position threshold but not yet beyond the losing-position threshold are analysed. This helps detect players who start using assistance only after the game turns against them.\n\nThese results are reported separately from equal positions."),
+      _T("Анализируются позиции, в которых сторона хуже порога равной позиции, но ещё не вышла за порог проигранной позиции. Это помогает выявлять игроков, которые начинают пользоваться подсказками только после ухудшения позиции.\n\nЭти результаты выводятся отдельно от равных позиций."));
+   MessageBox(sMessage, GetAppTitle(), MB_ICONINFORMATION);
 }
 
 void CPGNSpyDlg::OnBnClickedNumvariationshelp()
 {
-   CString sMessage = "Specify the number of top engine moves to be compared to the actual move played in each position.  "
-                      "This is to help detect cheaters who regularly play a second-choice move, or who use a different "
-                      "engine or engine settings.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = Loc(
+      _T("Specify how many top engine moves should be compared with the move actually played in each position. This helps detect players who regularly choose the engine's second line, or who may use a different engine or settings."),
+      _T("Укажите, сколько лучших ходов движка нужно сравнивать с реально сыгранным ходом в каждой позиции. Это помогает выявлять игроков, которые регулярно выбирают второй или третий выбор движка, либо используют другой движок или иные настройки."));
+   MessageBox(sMessage, GetAppTitle(), MB_ICONINFORMATION);
 }
 
 void CPGNSpyDlg::OnBnClickedLoadresults()
 {
-   CFileDialog vFileDialog(TRUE, "xml", "*.xml", OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_DONTADDTORECENT, "PGN Spy files (*.xml)|*.xml|All files (*.*)|*.*||", this);
+   CFileDialog vFileDialog(TRUE, _T("xml"), _T("*.xml"), OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_DONTADDTORECENT,
+      Loc(_T("PGN Spy files (*.xml)|*.xml|All files (*.*)|*.*||"),
+         _T("Файлы PGN Spy (*.xml)|*.xml|Все файлы (*.*)|*.*||")),
+      this);
    if (vFileDialog.DoModal() != IDOK)
       return;
    CArray <CGame, CGame> avGames;
    CEngineSettings vEngineSettings;
    if (!LoadGameArrayFromFile(vFileDialog.GetPathName(), avGames, vEngineSettings))
    {
-      MessageBox(_T("Failed to load game file."), _T("PGN Spy"), MB_ICONEXCLAMATION);
+      MessageBox(Loc(_T("Failed to load game file."), _T("Не удалось загрузить файл результатов.")), GetAppTitle(), MB_ICONEXCLAMATION);
       return;
    }
 
    CResultsDlg vResultsDlg;
    vResultsDlg.m_avGames.Copy(avGames);
    vResultsDlg.m_vEngineSettings = vEngineSettings;
+   vResultsDlg.m_sSavedResultsPath = Loc(_T("Loaded analysis XML: "), _T("Загруженный XML анализа: ")) + vFileDialog.GetPathName();
    vResultsDlg.DoModal();
 }
+
+void CPGNSpyDlg::OnCbnSelchangeLanguage()
+{
+   EAppLanguage eSelectedLanguage = GetSelectedLanguage(m_vLanguage);
+   if (eSelectedLanguage == GetCurrentAppLanguage())
+      return;
+
+   SaveAppLanguageToRegistry(eSelectedLanguage);
+   MessageBox(GetLanguageChangedMessage(), GetAppTitle(), MB_ICONINFORMATION);
+}
+
+
+

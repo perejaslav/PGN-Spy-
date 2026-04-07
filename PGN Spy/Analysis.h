@@ -82,6 +82,7 @@ class CMove
 public:
    CMove();
    CString m_sMove;
+   CString m_sRawScore;
    int m_iDepth;
    int m_iTime;
    int m_iScore;
@@ -120,6 +121,7 @@ public:
    CString m_sBlack;
    CString m_sResult;
    CString m_sTimeControl;
+   CString m_sUCIGameText;
 };
 
 class CStats
@@ -163,3 +165,5 @@ public:
 
 bool LoadGameArrayFromFile(CString sFileName, CArray<CGame, CGame> &raGames, CEngineSettings &rvEngineSettings);
 bool SaveGameArrayToFile(CString sFileName, const CArray<CGame, CGame> &raGames, CEngineSettings vEngineSettings);
+bool CanExportAnnotatedPGN(const CArray<CGame, CGame> &raGames, CString &rsReason);
+bool ExportGameArrayToAnnotatedPGN(CString sFileName, const CArray<CGame, CGame> &raGames, const CEngineSettings &vEngineSettings, CString &rsError);

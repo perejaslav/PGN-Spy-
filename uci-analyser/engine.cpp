@@ -24,9 +24,12 @@
 */
 
 #include "engine.h"
+#include <algorithm>
+#include <cctype>
 #include <sstream>
 #include <string.h>
 #include <stdlib.h>
+#include <vector>
 
 #include "utils.h"
 
@@ -36,10 +39,51 @@ int g_iResponseCount = 0;
 bool g_bWaitingForResponse = false;
 Engine *g_eEngineForMonitor = NULL;
 
+namespace {
+
+string trimWhitespace(const string& value) {
+   string::size_type start = value.find_first_not_of(" \t\r\n");
+   if (start == string::npos)
+      return "";
+
+   string::size_type end = value.find_last_not_of(" \t\r\n");
+   return value.substr(start, end - start + 1);
+}
+
+string normaliseOptionName(const string& name) {
+   string normalised = trimWhitespace(name);
+   transform(normalised.begin(), normalised.end(), normalised.begin(),
+      [](unsigned char ch) { return static_cast<char>(tolower(ch)); });
+   return normalised;
+}
+
+bool startsWith(const string& value, const char* prefix) {
+   size_t prefixLength = strlen(prefix);
+   return value.compare(0, prefixLength, prefix) == 0;
+}
+
+bool extractOptionName(const string& response, string& optionName) {
+   static const char* OPTION_PREFIX = "option name ";
+   if (!startsWith(response, OPTION_PREFIX))
+      return false;
+
+   size_t nameStart = strlen(OPTION_PREFIX);
+   size_t typePos = response.find(" type ", nameStart);
+   if (typePos == string::npos)
+      optionName = response.substr(nameStart);
+   else
+      optionName = response.substr(nameStart, typePos - nameStart);
+
+   optionName = trimWhitespace(optionName);
+   return !optionName.empty();
+}
+
+}
+
 void Engine::clearHash(void) {
-   stringstream ss;
-   ss << "setoption name clear hash";
-   send(ss.str());
+   if (supportsOption("Clear Hash")) {
+      send("setoption name Clear Hash");
+   }
 }
 
 void Engine::go(void) {
@@ -90,11 +134,50 @@ void Engine::setOption(const string& name, int value) {
     setOption(name, ss.str());
 }
 
+void Engine::setOptionIfSupported(const string& name, const string& value) {
+    if (supportsOption(name)) {
+        setOption(name, value);
+    }
+}
+
+void Engine::setOptionIfSupported(const string& name, int value) {
+    if (supportsOption(name)) {
+        setOption(name, value);
+    }
+}
+
 void Engine::setOptions(map<string, string>& options) {
     map<string, string>::iterator it;
     for (it = options.begin(); it != options.end(); it++) {
-        setOption(it->first, it->second);
+        setOptionIfSupported(it->first, it->second);
     }
+}
+
+bool Engine::supportsOption(const string& name) const {
+    return supportedOptions.find(normaliseOptionName(name)) != supportedOptions.end();
+}
+
+bool Engine::readUciOptions(void) {
+    supportedOptions.clear();
+
+    bool eof = false;
+    while (!eof) {
+        string response = getResponse(eof);
+        if (eof) {
+            break;
+        }
+
+        if (response == "uciok") {
+            return true;
+        }
+
+        string optionName;
+        if (extractOptionName(response, optionName)) {
+            supportedOptions.insert(normaliseOptionName(optionName));
+        }
+    }
+
+    return false;
 }
 
 /*
@@ -119,16 +202,15 @@ bool Engine::initEngine(int variations, int searchDepth, int searchMaxTime, int 
     this->searchMinTime = searchMinTime;
 
 	send("uci");
-    if (waitForResponse("uciok")) {
+    if (readUciOptions()) {
         // Set default options.
-        setOption("UCI_AnalyseMode", "true");
-        setOption("MultiPV", variations);
+        setOptionIfSupported("UCI_AnalyseMode", "true");
+        setOptionIfSupported("MultiPV", variations);
 
         // Set command-line options.
         setOptions(options);
 
-        startNewGame();
-        return checkIsReady();
+        return startNewGame();
     } else {
         return false;
     }
@@ -139,18 +221,22 @@ bool Engine::initEngine(int variations, int searchDepth, int searchMaxTime, int 
  */
 bool Engine::checkIsReady(void) {
     send("isready");
-
-    bool eof = false;
-    string response = getResponse(eof);
-    return !eof && response.compare("readyok") == 0;
+    return waitForResponse("readyok");
 }
 
 void Engine::quitEngine(void) {
-    CloseHandle(hEngineMonitor);
+    if (g_bEngineClosed)
+        return;
+
     g_bEngineClosed = true;
     g_eEngineForMonitor = NULL;
 
     send("quit");
+
+    if (hEngineMonitor != NULL) {
+        CloseHandle(hEngineMonitor);
+        hEngineMonitor = NULL;
+    }
 }
 
 /*
@@ -194,7 +280,7 @@ bool Engine::waitForResponse(const char *str) {
     string response;
     do {
         response = getResponse(eof);
-    } while (strcmp(str, response.c_str()) != 0 && !eof);
+    } while (!eof && strcmp(str, response.c_str()) != 0);
     return strcmp(str, response.c_str()) == 0;
 }
 
@@ -413,9 +499,11 @@ bool Engine::startEngine(const string& engineName) {
 	siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
 
 	// Create the child process. 
-	CA2T commandLine(engineName.c_str());
-	bSuccess = CreateProcess(NULL,
-		commandLine,     // command line 
+	string commandLine = "\"" + engineName + "\"";
+	vector<char> commandLineBuffer(commandLine.begin(), commandLine.end());
+	commandLineBuffer.push_back('\0');
+	bSuccess = CreateProcessA(engineName.c_str(),
+		&commandLineBuffer[0],     // command line 
 		NULL,          // process security attributes 
 		NULL,          // primary thread security attributes 
 		TRUE,          // handles are inherited 
@@ -424,6 +512,9 @@ bool Engine::startEngine(const string& engineName) {
 		NULL,          // use parent's current directory 
 		&siStartInfo,  // STARTUPINFO pointer 
 		&piProcInfo);  // receives PROCESS_INFORMATION 
+
+	CloseHandle(unusedChildStdinRead);
+	CloseHandle(unusedChildStdoutWrite);
 
 	// If an error occurs, exit the application. 
 	if (!bSuccess) {
@@ -439,6 +530,11 @@ bool Engine::startEngine(const string& engineName) {
 //		CloseHandle(piProcInfo.hProcess);
 		CloseHandle(piProcInfo.hThread);
 	}
+
+   g_bEngineClosed = false;
+   g_bWaitingForResponse = false;
+   g_iResponseCount = 0;
+   g_eEngineForMonitor = this;
 
    SECURITY_ATTRIBUTES saThreadAttrib;
    saThreadAttrib.bInheritHandle = TRUE;
@@ -477,7 +573,12 @@ DWORD WINAPI EngineMonitor(_In_ LPVOID lpParameter)
          //before we assume it's unresponsive and kill it
          iEngineLockedCount++;
          if (iEngineLockedCount > 20)
-            g_eEngineForMonitor->quitEngine();
+         {
+            if (g_eEngineForMonitor != NULL)
+               g_eEngineForMonitor->quitEngine();
+            else
+               TerminateProcess(hEngineProcess, 0);
+         }
       }
       else
       {

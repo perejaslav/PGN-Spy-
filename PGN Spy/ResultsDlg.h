@@ -51,6 +51,8 @@ public:
    afx_msg void OnBnClickedSavedata();
    void CalculateStats();
    CString m_sResults;
+   CString m_sSavedResultsPath;
+   CString m_sSavedPGNPath;
    CArray<CGame, CGame> m_avGames;
    CEngineSettings m_vEngineSettings;
    CAnalysisSettings m_vAnalysisSettings;
@@ -81,6 +83,7 @@ public:
    afx_msg void OnBnClickedHelpinclude();
    afx_msg void OnBnClickedPerGameExport();
    afx_msg void OnBnClickedLoadAndMergeResults();
+   afx_msg void OnBnClickedExportannotatedpgn();
    bool IncludeGameInStats(const CGame &vGame, bool &bExcludeWhite, bool &bExcludeBlack);
    bool IncludePositionInStats(const CGame &vGame, const CPosition &vPosition, int iMoveNum, bool bExcludeWhite, bool bExcludeBlack);
 };

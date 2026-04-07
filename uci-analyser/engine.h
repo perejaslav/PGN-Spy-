@@ -33,12 +33,12 @@
 #include <unistd.h>
 #else
 #include "stdafx.h"
-#include <atlstr.h>
 #include <windows.h>
 #endif
 
 #include <string>
 #include <map>
+#include <set>
 
 using namespace std;
 
@@ -46,6 +46,19 @@ class Engine {
 public:
 
     Engine(const string& engineName) {
+#ifdef __unix__
+        toEngine = NULL;
+        fromEngine = NULL;
+#else
+        writeToEngine = NULL;
+        readFromEngine = NULL;
+#endif
+        hEngineMonitor = NULL;
+        variations = 0;
+        searchDepth = 0;
+        searchMaxTime = 0;
+        searchMinTime = 0;
+
         if (!startEngine(engineName)) {
             throw -1;
         }
@@ -69,11 +82,14 @@ public:
     void setFENPosition(const string& fenstring, const string& moves);
     void setOption(const string& name, const string& value);
     void setOption(const string& name, int value);
+    void setOptionIfSupported(const string& name, const string& value);
+    void setOptionIfSupported(const string& name, int value);
     void setOptions(map<string, string>& options);
+    bool supportsOption(const string& name) const;
 
-    inline void startNewGame(void) {
+    inline bool startNewGame(void) {
         send("ucinewgame");
-        checkIsReady();
+        return checkIsReady();
     }
     bool waitForResponse(const char *str);
 
@@ -98,7 +114,9 @@ private:
     int searchMaxTime;
     int searchMinTime;
     HANDLE hEngineMonitor;
+    set<string> supportedOptions;
 
+    bool readUciOptions(void);
     bool startEngine(const string&);
 };
 

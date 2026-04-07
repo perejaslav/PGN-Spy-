@@ -22,6 +22,7 @@
 
 #pragma once
 #include "Analysis.h"
+#include "afxcmn.h"
 
 // CAnalysisDlg dialog
 
@@ -30,6 +31,15 @@ class CAnalysisDlg : public CDialogEx
    DECLARE_DYNAMIC(CAnalysisDlg)
 
 public:
+   enum EAnalysisState
+   {
+      STATE_RUNNING,
+      STATE_PAUSING,
+      STATE_PAUSED,
+      STATE_STOPPING,
+      STATE_COMPLETED
+   };
+
    CAnalysisDlg(CWnd* pParent = NULL);   // standard constructor
    virtual ~CAnalysisDlg();
 
@@ -46,6 +56,9 @@ protected:
    DECLARE_MESSAGE_MAP()
 public:
    CString m_sStatus;
+   CString m_sCurrentStatus;
+   CString m_sProgressSummary;
+   CProgressCtrl m_vProgress;
    afx_msg void OnBnClickedOK();
    afx_msg void OnBnClickedCancel();
    afx_msg void OnTimer(UINT_PTR nIDEvent);
@@ -63,15 +76,30 @@ public:
    CString m_sStatusHistory;
    bool m_bShowResults;
    bool m_bCancelled;
+   bool m_bStopped;
    bool m_bStatusChanged;
+   int m_iProgressPercent;
    int m_iTargetThreads;
    int m_iMaxThreads;
    CString m_sConvertedPGN;
+   CString m_sSavedResultsPath;
+   CString m_sSavedPGNPath;
+   CString m_sAutoSaveError;
+   CString m_sAutoSavePGNError;
+   CString m_sInputFilePath;
+   EAnalysisState m_eState;
    void UpdateThreadControlButtons();
+   CString GetStateLabel() const;
+   void UpdateProgressDisplay(const CString& sPhase, int iCompletedGames, int iTotalGames, int iActiveProcesses, const CString& sLastEvent = _T(""));
+   void RequestStop();
+   void CancelActiveProcesses();
+   bool AutoSaveOutputs(bool bPartialResults);
    bool ProcessGames();
    bool LaunchAnalyser(CGamePGN vGamePGN, int iCurThread);
    void ReadFromThread(int iThread, CString IN OUT &rsResults, bool IN OUT &rbError);
    bool ProcessOutput(CString sOutput);
    afx_msg void OnBnClickedDecreasethreads();
    afx_msg void OnBnClickedIncreasethreads();
+   afx_msg void OnBnClickedPauseresume();
+   afx_msg void OnBnClickedStopanalysis();
 };

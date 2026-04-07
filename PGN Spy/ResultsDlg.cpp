@@ -3,7 +3,7 @@
 // Copyright(c) 2016 Michael J. Gleason
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files(the "Software"), to deal
+// of this software and associated documentation files(the _T("Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
 // copies of the Software, and to permit persons to whom the Software is
@@ -12,7 +12,7 @@
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
 // 
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// THE SOFTWARE IS PROVIDED _T("AS IS"), WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
@@ -36,6 +36,8 @@ IMPLEMENT_DYNAMIC(CResultsDlg, CDialogEx)
 CResultsDlg::CResultsDlg(CWnd* pParent /*=NULL*/)
    : CDialogEx(IDD_RESULTS, pParent)
    , m_sResults(_T(""))
+   , m_sSavedResultsPath(_T(""))
+   , m_sSavedPGNPath(_T(""))
 {
 
 }
@@ -77,6 +79,8 @@ void CResultsDlg::DoDataExchange(CDataExchange* pDX)
    DDX_Check(pDX, IDC_INCLUDEWINS, m_vAnalysisSettings.m_bIncludeWins);
    DDX_Check(pDX, IDC_INCLUDELOSSES, m_vAnalysisSettings.m_bIncludeLosses);
    DDX_Check(pDX, IDC_INCLUDEDRAWS, m_vAnalysisSettings.m_bIncludeDraws);
+   DDX_Text(pDX, IDC_SAVEDRESULTSPATH, m_sSavedResultsPath);
+   DDX_Text(pDX, IDC_SAVEDPGNPATH, m_sSavedPGNPath);
 }
 
 
@@ -100,11 +104,28 @@ BEGIN_MESSAGE_MAP(CResultsDlg, CDialogEx)
    ON_BN_CLICKED(IDC_HELPINCLUDE, &CResultsDlg::OnBnClickedHelpinclude)
    ON_BN_CLICKED(IDC_PERGAMEEXPORT, &CResultsDlg::OnBnClickedPerGameExport)
    ON_BN_CLICKED(IDC_LOADANDMERGERESULTS, &CResultsDlg::OnBnClickedLoadAndMergeResults)
+   ON_BN_CLICKED(IDC_EXPORTANNOTATEDPGN, &CResultsDlg::OnBnClickedExportannotatedpgn)
 END_MESSAGE_MAP()
 
 BOOL CResultsDlg::OnInitDialog()
 {
    CDialog::OnInitDialog();
+   ApplyDialogTranslations(this, IDD_RESULTS);
+
+   if (m_sSavedResultsPath.IsEmpty())
+      m_sSavedResultsPath = Loc(_T("Analysis XML has not been auto-saved in this session."), _T("XML анализа в этом сеансе автоматически не сохранялся."));
+   if (m_sSavedPGNPath.IsEmpty())
+   {
+      CString sReason;
+      if (CanExportAnnotatedPGN(m_avGames, sReason))
+         m_sSavedPGNPath = Loc(_T("Annotated PGN has not been saved in this session."), _T("Аннотированный PGN в этом сеансе не сохранялся."));
+      else
+         m_sSavedPGNPath = sReason;
+   }
+   CString sExportReason;
+   UpdateData(FALSE);
+   GetDlgItem(IDC_EXPORTANNOTATEDPGN)->EnableWindow(CanExportAnnotatedPGN(m_avGames, sExportReason));
+   UpdateData(FALSE);
 
    LoadPlayerAndEventLists();
    DisableInvalidSettings();
@@ -120,21 +141,21 @@ BOOL CResultsDlg::OnInitDialog()
 void CResultsDlg::OnBnClickedAbout()
 {
    CString sMessage;
-   sMessage = "T1/T2/T3/etc: These stats display information about how often a player's moves matched the top "
-              "one, two, three, etc., engine moves.  A high number could be an indicator of possible engine use.\n"
-              "\n"
-              ">N CP Loss: This indicates how often a player's moves were worse than the top engine move by the "
-              "specified value (in centipawns).  A low number could be an indicator of possible engine use.\n"
-              "\n"
-              "CP loss: This indicates how much worse a player's moves were when compared to the top engine move. "
-              "A low number could be an indicator of possible engine use.  Values are in centipawns (1/100 of a pawn).\n"
-              "\n"
-              "These values MUST NOT be taken as evidence of cheating on their own, without proper statistical analysis, "
-              "comparison to appropriate benchmarks, and consideration of other evidence.\n"
-              "\n"
-              "Binomial confidence intervals can be calculated at :"
-              "\nhttp://statpages.info/confint.html#Binomial";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   sMessage = _T("T1/T2/T3/etc: These stats display information about how often a player's moves matched the top ")
+              _T("one, two, three, etc., engine moves.  A high number could be an indicator of possible engine use.\n")
+              _T("\n")
+              _T(">N CP Loss: This indicates how often a player's moves were worse than the top engine move by the ")
+              _T("specified value (in centipawns).  A low number could be an indicator of possible engine use.\n")
+              _T("\n")
+              _T("CP loss: This indicates how much worse a player's moves were when compared to the top engine move. ")
+              _T("A low number could be an indicator of possible engine use.  Values are in centipawns (1/100 of a pawn).\n")
+              _T("\n")
+              _T("These values MUST NOT be taken as evidence of cheating on their own, without proper statistical analysis, ")
+              _T("comparison to appropriate benchmarks, and consideration of other evidence.\n")
+              _T("\n")
+              _T("Binomial confidence intervals can be calculated at :")
+              _T("\nhttp://statpages.info/confint.html#Binomial");
+   MessageBox(sMessage, _T("PGN Spy"), MB_ICONINFORMATION);
 }
 
 
@@ -145,13 +166,13 @@ void CResultsDlg::OnBnClickedSavedata()
       return;
    CString sFilePath = vFileDialog.GetPathName();
    CString sReport, sLine, sText;
-   sReport = "Event\tDate\tWhite\tBlack\tResult\tTime Control\tMove #\tPlayer\tMove Played\tDepth Searched\tT-number";
+   sReport = _T("Event\tDate\tWhite\tBlack\tResult\tTime Control\tMove #\tPlayer\tMove Played\tDepth Searched\tT-number");
    for (int i = 0; i < m_vEngineSettings.m_iNumVariations+1; i++)
    {
-      sText.Format("\tT%i move eval", i + 1);
+      sText.Format(_T("\tT%i move eval"), i + 1);
       sReport += sText;
    }
-   sReport += "\tNon-top move eval";
+   sReport += _T("\tNon-top move eval");
    for (int iGame = 0; iGame < m_avGames.GetSize(); iGame++)
    {
       CGame *pGame = &m_avGames[iGame];
@@ -160,49 +181,53 @@ void CResultsDlg::OnBnClickedSavedata()
          //first get general game data
          CPosition *pPosition = &pGame->m_avPositions[iPosition];
          //the \' before the result is so Excel won't be stupid and treat 1-0 as a date - 1/1/2000
-         sLine = pGame->m_sEvent + "\t" + pGame->m_sDate + "\t" + pGame->m_sWhite + "\t" + pGame->m_sBlack + "\t\'" + pGame->m_sResult + "\t" + pGame->m_sTimeControl + "\t";
+         sLine = pGame->m_sEvent + _T("\t") + pGame->m_sDate + _T("\t") + pGame->m_sWhite + _T("\t") + pGame->m_sBlack + _T("\t\'") + pGame->m_sResult + _T("\t") + pGame->m_sTimeControl + _T("\t");
 
          //got all game data, now get move data
          //move number and coordinates
-         sText.Format("%i\t", (iPosition/2) + m_vEngineSettings.m_iBookDepth + 1);
+         sText.Format(_T("%i\t"), (iPosition/2) + m_vEngineSettings.m_iBookDepth + 1);
          sLine += sText;
-         sText = (pPosition->m_bWhite) ? "White" : "Black";
-         sLine += sText + "\t" + pPosition->m_avTopMoves[pPosition->m_iMovePlayed].m_sMove + "\t";
+         sText = (pPosition->m_bWhite) ? _T("White") : _T("Black");
+         sLine += sText + _T("\t") + pPosition->m_avTopMoves[pPosition->m_iMovePlayed].m_sMove + _T("\t");
          //max depth searched
          int iMaxDepth = 0;
          for (int i = 0; i < pPosition->m_avTopMoves.GetSize(); i++)
             iMaxDepth = max(iMaxDepth, pPosition->m_avTopMoves[i].m_iDepth);
-         sText.Format("%i\t", iMaxDepth);
+         sText.Format(_T("%i\t"), iMaxDepth);
          sLine += sText;
          //T-number of move
-         sText.Format("%i\t", pPosition->m_iMovePlayed + 1);
+         sText.Format(_T("%i\t"), pPosition->m_iMovePlayed + 1);
          sLine += sText;
          //evaluation of variants
          int iMove = 0;
          for (; iMove < pPosition->m_avTopMoves.GetSize(); iMove++)
          {
-            sText.Format("%i\t", pPosition->m_avTopMoves[iMove].m_iScore);
+            sText.Format(_T("%i\t"), pPosition->m_avTopMoves[iMove].m_iScore);
             sLine += sText;
          }
          for (; iMove < m_vEngineSettings.m_iNumVariations + 1; iMove++)
-            sLine += "N/A\t";
-         sReport += "\r\n" + sLine;
+            sLine += _T("N/A\t");
+         sReport += _T("\r\n") + sLine;
       }
    }
 
    CFile vFile;
    if (!vFile.Open(sFilePath, CFile::modeCreate | CFile::modeWrite))
    {
-      MessageBox("Failed to create output file.", "PGN Spy", MB_ICONEXCLAMATION);
+      MessageBox(_T("Failed to create output file."), _T("PGN Spy"), MB_ICONEXCLAMATION);
       return;
    }
 
-   vFile.Write(sReport.GetBuffer(), sReport.GetLength());
-   sReport.ReleaseBuffer();
+   if (!WriteCStringToFile(vFile, sReport))
+   {
+      vFile.Close();
+      MessageBox(_T("Failed to write output file."), _T("PGN Spy"), MB_ICONEXCLAMATION);
+      return;
+   }
    vFile.Close();
-   MessageBox("File saved.", "PGN Spy", MB_ICONINFORMATION);
+   MessageBox(_T("File saved."), _T("PGN Spy"), MB_ICONINFORMATION);
 
-   ShellExecute(NULL, "open", sFilePath, NULL, NULL, SW_MAXIMIZE);
+   ShellExecute(NULL, _T("open"), sFilePath, NULL, NULL, SW_MAXIMIZE);
 }
 
 bool CResultsDlg::IncludeGameInStats(const CGame &vGame, bool &bExcludeWhite, bool &bExcludeBlack)
@@ -223,21 +248,21 @@ bool CResultsDlg::IncludeGameInStats(const CGame &vGame, bool &bExcludeWhite, bo
       m_vAnalysisSettings.m_sEvent.CompareNoCase(vGame.m_sEvent) != 0)
       return false;
 
-   if (!m_vAnalysisSettings.m_bIncludeDraws && vGame.m_sResult.CompareNoCase("1/2-1/2") == 0)
+   if (!m_vAnalysisSettings.m_bIncludeDraws && vGame.m_sResult.CompareNoCase(_T("1/2-1/2")) == 0)
       return false;
 
    if (!m_vAnalysisSettings.m_bIncludeLosses)
    {
-      if (vGame.m_sResult.CompareNoCase("1-0") == 0)
+      if (vGame.m_sResult.CompareNoCase(_T("1-0")) == 0)
          bExcludeBlack = true;
-      else if (vGame.m_sResult.CompareNoCase("0-1") == 0)
+      else if (vGame.m_sResult.CompareNoCase(_T("0-1")) == 0)
          bExcludeWhite = true;
    }
    if (!m_vAnalysisSettings.m_bIncludeWins)
    {
-      if (vGame.m_sResult.CompareNoCase("1-0") == 0)
+      if (vGame.m_sResult.CompareNoCase(_T("1-0")) == 0)
          bExcludeWhite = true;
-      else if (vGame.m_sResult.CompareNoCase("0-1") == 0)
+      else if (vGame.m_sResult.CompareNoCase(_T("0-1")) == 0)
          bExcludeBlack = true;
    }
 
@@ -329,24 +354,24 @@ void CResultsDlg::CalculateStats()
 
    //Now dump results to text
    if (!m_vAnalysisSettings.m_sPlayerName.IsEmpty())
-      m_sResults.Format("%s, %i games\r\n\r\n", m_vAnalysisSettings.m_sPlayerName, iGamesInSubset);
+      m_sResults.Format(Loc(_T("%s, %i games\r\n\r\n"), _T("%s, %i партий\r\n\r\n")), m_vAnalysisSettings.m_sPlayerName, iGamesInSubset);
    else
-      m_sResults.Format("%i games\r\n\r\n", iGamesInSubset);
-   m_sResults += "UNDECIDED POSITIONS\r\n";
+      m_sResults.Format(Loc(_T("%i games\r\n\r\n"), _T("%i партий\r\n\r\n")), iGamesInSubset);
+   m_sResults += Loc(_T("UNDECIDED POSITIONS\r\n"), _T("НЕЯСНЫЕ ПОЗИЦИИ\r\n"));
    m_sResults += m_vUndecidedPositions.GetResultsText();
    if (m_vAnalysisSettings.m_bIncludeLosing)
    {
-      m_sResults += "\r\nLOSING POSITIONS\r\n";
+      m_sResults += Loc(_T("\r\nLOSING POSITIONS\r\n"), _T("\r\nПРОИГРАННЫЕ ПОЗИЦИИ\r\n"));
       m_sResults += m_vLosingPositions.GetResultsText();
    }
    if (m_vAnalysisSettings.m_bIncludeWinning)
    {
-      m_sResults += "\r\nWINNING POSITIONS\r\n";
+      m_sResults += Loc(_T("\r\nWINNING POSITIONS\r\n"), _T("\r\nВЫИГРАННЫЕ ПОЗИЦИИ\r\n"));
       m_sResults += m_vWinningPositions.GetResultsText();
    }
    if (m_vAnalysisSettings.m_bIncludePostLosing)
    {
-      m_sResults += "\r\nPOST-LOSING POSITIONS\r\n";
+      m_sResults += Loc(_T("\r\nPOST-LOSING POSITIONS\r\n"), _T("\r\nПОЗИЦИИ ПОСЛЕ УХУДШЕНИЯ\r\n"));
       m_sResults += m_vPostLosingPositions.GetResultsText();
    }
 
@@ -355,79 +380,79 @@ void CResultsDlg::CalculateStats()
 
 void CResultsDlg::OnBnClickedForcedmovehelp()
 {
-   CString sMessage = "For T1/T2/T3/etc. analysis, moves where the next-best move are evaluated to be worse than the "
-                      "move in question by more than the specified threshold will be excluded from analysis.  This avoids "
-                      "flagging obvious recaptures and other moves that a strong player would usually be expected to find.  "
-                      "Values are in centipawns.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = _T("For T1/T2/T3/etc. analysis, moves where the next-best move are evaluated to be worse than the ")
+                      _T("move in question by more than the specified threshold will be excluded from analysis.  This avoids ")
+                      _T("flagging obvious recaptures and other moves that a strong player would usually be expected to find.  ")
+                      _T("Values are in centipawns.");
+   MessageBox(sMessage, _T("PGN Spy"), MB_ICONINFORMATION);
 }
 
 
 void CResultsDlg::OnBnClickedUnclearpositionhelp()
 {
-   CString sMessage = "For T1/T2/T3/etc. analysis, moves where the next-best move is evaluated to be worse than the "
-                      "first-choice move by more than the specified threshold will be excluded from analysis.  Values "
-                      "are in centipawns.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = _T("For T1/T2/T3/etc. analysis, moves where the next-best move is evaluated to be worse than the ")
+                      _T("first-choice move by more than the specified threshold will be excluded from analysis.  Values ")
+                      _T("are in centipawns.");
+   MessageBox(sMessage, _T("PGN Spy"), MB_ICONINFORMATION);
 }
 
 
 void CResultsDlg::OnBnClickedEqualpositionhelp()
 {
-   CString sMessage = "Positions where neither side is ahead by more than the specified threshold will be analysed.  "
-                      "This is to help detect cheaters who stop cheating once they are ahead.\n\nThese results will be "
-                      "reported separately from those for losing positions.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = _T("Positions where neither side is ahead by more than the specified threshold will be analysed.  ")
+                      _T("This is to help detect cheaters who stop cheating once they are ahead.\n\nThese results will be ")
+                      _T("reported separately from those for losing positions.");
+   MessageBox(sMessage, _T("PGN Spy"), MB_ICONINFORMATION);
 }
 
 
 void CResultsDlg::OnBnClickedHelpplayer()
 {
-   CString sMessage = "If a player name is entered, statistics for the specified player will be reported.  Games excluding "
-                      "this player will be ignored.\n\nIf no player name is entered, aggregate statistics for all players "
-                      "will be reported.  This is useful for establishing baselines.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = _T("If a player name is entered, statistics for the specified player will be reported.  Games excluding ")
+                      _T("this player will be ignored.\n\nIf no player name is entered, aggregate statistics for all players ")
+                      _T("will be reported.  This is useful for establishing baselines.");
+   MessageBox(sMessage, _T("PGN Spy"), MB_ICONINFORMATION);
 }
 
 
 void CResultsDlg::OnBnClickedHelpopponent()
 {
-   CString sMessage = "If a player name is entered, statistics for all moves played against the specified player will "
-                      "be reported.  Games excluding this player will be ignored.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = _T("If a player name is entered, statistics for all moves played against the specified player will ")
+                      _T("be reported.  Games excluding this player will be ignored.");
+   MessageBox(sMessage, _T("PGN Spy"), MB_ICONINFORMATION);
 }
 
 
 void CResultsDlg::OnBnClickedHelpevent()
 {
-   CString sMessage = "If an event name is entered, statistics for moves played during the specified event will be reported.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = _T("If an event name is entered, statistics for moves played during the specified event will be reported.");
+   MessageBox(sMessage, _T("PGN Spy"), MB_ICONINFORMATION);
 }
 
 
 void CResultsDlg::OnBnClickedHelpmoverangemin()
 {
-   CString sMessage = "Moves before the specified move number will be excluded from analysis.  This must be greater "
-                      "than the book depth specified in engine settings when the analysis was run.\n\n"
-                      "Note: this counts one move for each side as a single move.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = _T("Moves before the specified move number will be excluded from analysis.  This must be greater ")
+                      _T("than the book depth specified in engine settings when the analysis was run.\n\n")
+                      _T("Note: this counts one move for each side as a single move.");
+   MessageBox(sMessage, _T("PGN Spy"), MB_ICONINFORMATION);
 }
 
 
 void CResultsDlg::OnBnClickedHelpmoverangemax()
 {
-   CString sMessage = "Moves after the specified move number will be excluded from analysis.\n\n"
-                      "Note: this counts one move for each side as a single move.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = _T("Moves after the specified move number will be excluded from analysis.\n\n")
+                      _T("Note: this counts one move for each side as a single move.");
+   MessageBox(sMessage, _T("PGN Spy"), MB_ICONINFORMATION);
 }
 
 
 void CResultsDlg::OnBnClickedLosingthresholdhelp()
 {
-   CString sMessage = "Positions where the player behind by more than the equal position threshold and less than the "
-                      "losing position threshold will be analysed.  This is to help detect cheaters who only cheat once "
-                      "they start to lose.\n\nThese results will be reported separately from those for equal positions.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = _T("Positions where the player behind by more than the equal position threshold and less than the ")
+                      _T("losing position threshold will be analysed.  This is to help detect cheaters who only cheat once ")
+                      _T("they start to lose.\n\nThese results will be reported separately from those for equal positions.");
+   MessageBox(sMessage, _T("PGN Spy"), MB_ICONINFORMATION);
 }
 
 
@@ -437,9 +462,9 @@ void CResultsDlg::OnBnClickedSavesettings()
       return;
 
    if (!m_vAnalysisSettings.SaveSettingsToRegistry())
-      MessageBox("Failed to save settings.", "PGN Spy", MB_ICONEXCLAMATION);
+      MessageBox(_T("Failed to save settings."), _T("PGN Spy"), MB_ICONEXCLAMATION);
    else
-      MessageBox("Settings saved.", "PGN Spy", MB_ICONINFORMATION);
+      MessageBox(_T("Settings saved."), _T("PGN Spy"), MB_ICONINFORMATION);
 }
 
 
@@ -459,9 +484,38 @@ void CResultsDlg::OnBnClickedSaveresults()
       return;
    CString sFilePath = vFileDialog.GetPathName();
    if (SaveGameArrayToFile(sFilePath, m_avGames, m_vEngineSettings))
+   {
+      m_sSavedResultsPath = _T("Saved analysis XML: ") + sFilePath;
+      UpdateData(FALSE);
       MessageBox(_T("Results saved."), _T("PGN Spy"), MB_ICONINFORMATION);
+   }
    else
       MessageBox(_T("Failed to save results."), _T("PGN Spy"), MB_ICONEXCLAMATION);
+}
+
+void CResultsDlg::OnBnClickedExportannotatedpgn()
+{
+   CString sReason;
+   if (!CanExportAnnotatedPGN(m_avGames, sReason))
+   {
+      MessageBox(sReason, _T("PGN Spy"), MB_ICONEXCLAMATION);
+      return;
+   }
+
+   CFileDialog vFileDialog(FALSE, _T("pgn"), _T("*.pgn"), OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("Portable Game Notation file (*.pgn)|*.pgn|All files (*.*)|*.*||"), this);
+   if (vFileDialog.DoModal() != IDOK)
+      return;
+
+   CString sError;
+   CString sFilePath = vFileDialog.GetPathName();
+   if (ExportGameArrayToAnnotatedPGN(sFilePath, m_avGames, m_vEngineSettings, sError))
+   {
+      m_sSavedPGNPath = _T("Saved annotated PGN: ") + sFilePath;
+      UpdateData(FALSE);
+      MessageBox(_T("Annotated PGN saved."), _T("PGN Spy"), MB_ICONINFORMATION);
+   }
+   else
+      MessageBox(sError, _T("PGN Spy"), MB_ICONEXCLAMATION);
 }
 
 bool CResultsDlg::ValidateSettings()
@@ -471,17 +525,17 @@ bool CResultsDlg::ValidateSettings()
 
    if (m_vAnalysisSettings.m_iMoveNumMin <= m_vEngineSettings.m_iBookDepth)
    {
-      MessageBox("The move range minimum must be greater than the engine book depth.", "PGN Spy", MB_ICONEXCLAMATION);
+      MessageBox(_T("The move range minimum must be greater than the engine book depth."), _T("PGN Spy"), MB_ICONEXCLAMATION);
       return false;
    }
    if (m_vAnalysisSettings.m_iMoveNumMin > m_vAnalysisSettings.m_iMoveNumMax)
    {
-      MessageBox("The move range minimum must not be greater than the move range maximum.", "PGN Spy", MB_ICONEXCLAMATION);
+      MessageBox(_T("The move range minimum must not be greater than the move range maximum."), _T("PGN Spy"), MB_ICONEXCLAMATION);
       return false;
    }
    if (m_vAnalysisSettings.m_iEqualPositionThreshold > m_vAnalysisSettings.m_iLosingThreshold)
    {
-      MessageBox("The equal position threshold must not exceed the losing position threshold.", "PGN Spy", MB_ICONEXCLAMATION);
+      MessageBox(_T("The equal position threshold must not exceed the losing position threshold."), _T("PGN Spy"), MB_ICONEXCLAMATION);
       return false;
    }
 
@@ -556,13 +610,13 @@ void CResultsDlg::OnBnClickedIncludeonlyunclear()
 
 void CResultsDlg::OnBnClickedHelpinclude()
 {
-   CString sMessage = "Losing positions are positions where the player in question is losing by more than the undecided "
-                      "position threshold but less than the losing position threshold.  Winning positions are positions "
-                      "where the player in question is winning by more than the undecided position threshold but less "
-                      "than the losing position threshold.  Post-losing positions are positions where the player in "
-                      "question was losing earlier in the game.  Positions where either player is losing by more than "
-                      "the losing position threshold will always be excluded.";
-   MessageBox(sMessage, "PGN Spy", MB_ICONINFORMATION);
+   CString sMessage = _T("Losing positions are positions where the player in question is losing by more than the undecided ")
+                      _T("position threshold but less than the losing position threshold.  Winning positions are positions ")
+                      _T("where the player in question is winning by more than the undecided position threshold but less ")
+                      _T("than the losing position threshold.  Post-losing positions are positions where the player in ")
+                      _T("question was losing earlier in the game.  Positions where either player is losing by more than ")
+                      _T("the losing position threshold will always be excluded.");
+   MessageBox(sMessage, _T("PGN Spy"), MB_ICONINFORMATION);
 }
 
 
@@ -586,13 +640,13 @@ void CResultsDlg::OnBnClickedPerGameExport()
    CString sFilePath = vFileDialog.GetPathName();
 
    CString sReport, sLine, sText;
-   sReport = "Event\tDate\tWhite\tBlack\tResult\tTime Control\tUndecided positions";
+   sReport = _T("Event\tDate\tWhite\tBlack\tResult\tTime Control\tUndecided positions");
    for (int i = 0; i < m_vEngineSettings.m_iNumVariations; i++)
    {
-      sText.Format("\tT%i moves\tT%i positions\tT%i%%", i + 1, i + 1, i + 1);
+      sText.Format(_T("\tT%i moves\tT%i positions\tT%i%%"), i + 1, i + 1, i + 1);
       sReport += sText;
    }
-   sReport += "\t=0 CP loss num\t>0 CP loss num\t>10 CP loss num\t>25 CP loss num\t>50 CP loss num\t>100 CP loss num\t>200 CP loss num\t>500 CP loss num\tCP loss mean";
+   sReport += _T("\t=0 CP loss num\t>0 CP loss num\t>10 CP loss num\t>25 CP loss num\t>50 CP loss num\t>100 CP loss num\t>200 CP loss num\t>500 CP loss num\tCP loss mean");
    int iGamesInSubset = 0;
    for (int iGame = 0; iGame < m_avGames.GetSize(); iGame++)
    {
@@ -619,12 +673,12 @@ void CResultsDlg::OnBnClickedPerGameExport()
 
       //first get general game data
       sLine = pGame->m_sEvent;
-      sLine += "\t" + pGame->m_sDate;
-      sLine += "\t" + pGame->m_sWhite;
-      sLine += "\t" + pGame->m_sBlack;
-      sLine += "\t\'" + pGame->m_sResult; //the \' is so that Excel doesn't interpret 1-0 as a date - 1/1/2000
-      sLine += "\t" + pGame->m_sTimeControl;
-      sText.Format("\t%i", vUndecidedPositions.m_iNumPositions);
+      sLine += _T("\t") + pGame->m_sDate;
+      sLine += _T("\t") + pGame->m_sWhite;
+      sLine += _T("\t") + pGame->m_sBlack;
+      sLine += _T("\t\'") + pGame->m_sResult; //the \' is so that Excel doesn't interpret 1-0 as a date - 1/1/2000
+      sLine += _T("\t") + pGame->m_sTimeControl;
+      sText.Format(_T("\t%i"), vUndecidedPositions.m_iNumPositions);
       sLine += sText;
 
       //now get T-stats
@@ -633,52 +687,56 @@ void CResultsDlg::OnBnClickedPerGameExport()
          double dTVal = 0;
          if (vUndecidedPositions.m_aiTMoves[i] > 0)
             dTVal = ((double)vUndecidedPositions.m_aiTValues[i] / (double)vUndecidedPositions.m_aiTMoves[i]) * 100.0;
-         sText.Format("\t%i\t%i\t%.2f%%", vUndecidedPositions.m_aiTValues[i], vUndecidedPositions.m_aiTMoves[i], dTVal);
+         sText.Format(_T("\t%i\t%i\t%.2f%%"), vUndecidedPositions.m_aiTValues[i], vUndecidedPositions.m_aiTMoves[i], dTVal);
          sLine += sText;
       }
 
       //get CP loss values
-      sText.Format("\t%i", vUndecidedPositions.m_iNumPositions - vUndecidedPositions.m_i0CPLoss);
+      sText.Format(_T("\t%i"), vUndecidedPositions.m_iNumPositions - vUndecidedPositions.m_i0CPLoss);
       sLine += sText;
-      sText.Format("\t%i", vUndecidedPositions.m_i0CPLoss);
+      sText.Format(_T("\t%i"), vUndecidedPositions.m_i0CPLoss);
       sLine += sText;
-      sText.Format("\t%i", vUndecidedPositions.m_i10CPLoss);
+      sText.Format(_T("\t%i"), vUndecidedPositions.m_i10CPLoss);
       sLine += sText;
-      sText.Format("\t%i", vUndecidedPositions.m_i25CPLoss);
+      sText.Format(_T("\t%i"), vUndecidedPositions.m_i25CPLoss);
       sLine += sText;
-      sText.Format("\t%i", vUndecidedPositions.m_i50CPLoss);
+      sText.Format(_T("\t%i"), vUndecidedPositions.m_i50CPLoss);
       sLine += sText;
-      sText.Format("\t%i", vUndecidedPositions.m_i100CPLoss);
+      sText.Format(_T("\t%i"), vUndecidedPositions.m_i100CPLoss);
       sLine += sText;
-      sText.Format("\t%i", vUndecidedPositions.m_i200CPLoss);
+      sText.Format(_T("\t%i"), vUndecidedPositions.m_i200CPLoss);
       sLine += sText;
-      sText.Format("\t%i", vUndecidedPositions.m_i500CPLoss);
+      sText.Format(_T("\t%i"), vUndecidedPositions.m_i500CPLoss);
       sLine += sText;
-      sText.Format("\t%.2f", vUndecidedPositions.m_dAvgCentipawnLoss);
+      sText.Format(_T("\t%.2f"), vUndecidedPositions.m_dAvgCentipawnLoss);
       sLine += sText;
 
-      sReport += "\r\n" + sLine;
+      sReport += _T("\r\n") + sLine;
    }
 
    CFile vFile;
    if (!vFile.Open(sFilePath, CFile::modeCreate | CFile::modeWrite))
    {
-      MessageBox("Failed to create output file.", "PGN Spy", MB_ICONEXCLAMATION);
+      MessageBox(_T("Failed to create output file."), _T("PGN Spy"), MB_ICONEXCLAMATION);
       return;
    }
 
-   vFile.Write(sReport.GetBuffer(), sReport.GetLength());
-   sReport.ReleaseBuffer();
+   if (!WriteCStringToFile(vFile, sReport))
+   {
+      vFile.Close();
+      MessageBox(_T("Failed to write output file."), _T("PGN Spy"), MB_ICONEXCLAMATION);
+      return;
+   }
    vFile.Close();
-   MessageBox("File saved.", "PGN Spy", MB_ICONINFORMATION);
+   MessageBox(_T("File saved."), _T("PGN Spy"), MB_ICONINFORMATION);
 
-   ShellExecute(NULL, "open", sFilePath, NULL, NULL, SW_MAXIMIZE);
+   ShellExecute(NULL, _T("open"), sFilePath, NULL, NULL, SW_MAXIMIZE);
 }
 
 
 void CResultsDlg::OnBnClickedLoadAndMergeResults()
 {
-   CFileDialog vFileDialog(TRUE, "xml", "*.xml", OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_DONTADDTORECENT, "PGN Spy files (*.xml)|*.xml|All files (*.*)|*.*||", this);
+   CFileDialog vFileDialog(TRUE, _T("xml"), _T("*.xml"), OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_DONTADDTORECENT, _T("PGN Spy files (*.xml)|*.xml|All files (*.*)|*.*||"), this);
    if (vFileDialog.DoModal() != IDOK)
       return;
    CArray <CGame, CGame> avGames;
@@ -692,13 +750,30 @@ void CResultsDlg::OnBnClickedLoadAndMergeResults()
    CEngineSettings vCompatibleSettings = m_vEngineSettings.MakeCompatible(vOtherEngineSettings, sWarning);
    if (!sWarning.IsEmpty())
    {
-      CString sMessage = "Engine setting compatibility warnings were encountered.  Do you wish to continue?\r\n\r\n" + sWarning;
-      if (MessageBox(sMessage, "PGN Spy", MB_ICONEXCLAMATION | MB_OKCANCEL) == IDCANCEL)
+      CString sMessage = _T("Engine setting compatibility warnings were encountered.  Do you wish to continue?\r\n\r\n") + sWarning;
+      if (MessageBox(sMessage, _T("PGN Spy"), MB_ICONEXCLAMATION | MB_OKCANCEL) == IDCANCEL)
          return;
    }
    m_vEngineSettings = vCompatibleSettings;
    m_avGames.Append(avGames);
+   m_sSavedResultsPath = _T("Loaded analysis XML: ") + vFileDialog.GetPathName();
+   {
+      CString sReason;
+      if (CanExportAnnotatedPGN(m_avGames, sReason))
+         m_sSavedPGNPath = _T("Annotated PGN can be exported from these loaded results.");
+      else
+         m_sSavedPGNPath = sReason;
+   }
    LoadPlayerAndEventLists();
    CalculateStats();
-   MessageBox("Analysis results successfully loaded and merged.", "PGN Spy", MB_ICONINFORMATION);
+   {
+      CString sReason;
+      GetDlgItem(IDC_EXPORTANNOTATEDPGN)->EnableWindow(CanExportAnnotatedPGN(m_avGames, sReason));
+   }
+   UpdateData(FALSE);
+      MessageBox(Loc(_T("Analysis results successfully loaded and merged."), _T("Результаты анализа успешно загружены и объединены.")), GetAppTitle(), MB_ICONINFORMATION);
 }
+
+
+
+

@@ -74,6 +74,15 @@
 #define IDC_PERGAMEEXPORT               1074
 #define IDC_BUTTON2                     1075
 #define IDC_LOADANDMERGERESULTS         1075
+#define IDC_ANALYSISSTATUS              1076
+#define IDC_ANALYSISPROGRESS            1077
+#define IDC_PROGRESSSUMMARY             1078
+#define IDC_SAVEDRESULTSPATH            1079
+#define IDC_PAUSERESUME                 1080
+#define IDC_STOPANALYSIS                1081
+#define IDC_EXPORTANNOTATEDPGN          1082
+#define IDC_SAVEDPGNPATH                1083
+#define IDC_LANGUAGE                    1084
 
 // Next default values for new objects
 // 
@@ -81,7 +90,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        133
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1076
+#define _APS_NEXT_CONTROL_VALUE         1085
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
