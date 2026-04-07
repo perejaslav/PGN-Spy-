@@ -15,6 +15,7 @@
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
+dist/
 x64/
 x86/
 bld/
@@ -68,6 +69,12 @@ artifacts/
 *.pidb
 *.svclog
 *.scc
+*.exe
+
+# Keep source docs, but ignore local binaries copied into the repo root.
+!README.md
+!README.ru.md
+!ReadMe.txt
 
 # Chutzpah Test files
 _Chutzpah*
