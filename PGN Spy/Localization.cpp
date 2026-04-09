@@ -16,7 +16,7 @@ namespace
    const CDialogTextTranslation g_vDialogTranslations[] =
    {
       { IDD_ABOUTBOX, _T("About PGN Spy"), _T("О программе PGN Spy") },
-      { IDD_ABOUTBOX, _T("Version 1.2.0"), _T("Версия 1.2.0") },
+      { IDD_ABOUTBOX, _T("Version 1.2.1"), _T("Версия 1.2.1") },
       { IDD_ABOUTBOX, _T("Copyright (C) 2017 Michael J. Gleason"), _T("Copyright (C) 2017 Michael J. Gleason") },
       { IDD_ABOUTBOX, _T("OK"), _T("ОК") },
 
@@ -27,8 +27,9 @@ namespace
       { IDD_PGNSPY_DIALOG, _T("Run Analysis"), _T("Запустить анализ") },
       { IDD_PGNSPY_DIALOG, _T("Book depth"), _T("Глубина книги") },
       { IDD_PGNSPY_DIALOG, _T("Variations"), _T("Варианты") },
-      { IDD_PGNSPY_DIALOG, _T("Threads"), _T("Потоки") },
+      { IDD_PGNSPY_DIALOG, _T("Engine Threads"), _T("Потоки движка") },
       { IDD_PGNSPY_DIALOG, _T("Hash size (MB)"), _T("Размер hash (МБ)") },
+      { IDD_PGNSPY_DIALOG, _T("Parallel Games"), _T("Параллельные партии") },
       { IDD_PGNSPY_DIALOG, _T("Min time per move (ms)"), _T("Мин. время на ход (мс)") },
       { IDD_PGNSPY_DIALOG, _T("Max time per move (ms)"), _T("Макс. время на ход (мс)") },
       { IDD_PGNSPY_DIALOG, _T("Min search depth"), _T("Мин. глубина поиска") },
@@ -39,11 +40,11 @@ namespace
 
       { IDD_ANALYSIS, _T("PGN Spy"), _T("PGN Spy") },
       { IDD_ANALYSIS, _T("Preparing analysis..."), _T("Подготовка анализа...") },
-      { IDD_ANALYSIS, _T("0 of 0 games completed. 0 active threads."), _T("Завершено 0 из 0 партий. Активных потоков: 0.") },
-      { IDD_ANALYSIS, _T("Decrease Threads"), _T("Меньше потоков") },
+      { IDD_ANALYSIS, _T("0 of 0 games completed. Active analysers: 0. Engine threads per analyser: 1. Total engine threads: 0."), _T("Завершено 0 из 0 партий. Активных анализаторов: 0. Потоков движка на анализатор: 1. Всего потоков движка: 0.") },
+      { IDD_ANALYSIS, _T("Fewer Games"), _T("Меньше партий") },
       { IDD_ANALYSIS, _T("Pause"), _T("Пауза") },
       { IDD_ANALYSIS, _T("Stop"), _T("Стоп") },
-      { IDD_ANALYSIS, _T("Increase Threads"), _T("Больше потоков") },
+      { IDD_ANALYSIS, _T("More Games"), _T("Больше партий") },
 
       { IDD_RESULTS, _T("Results"), _T("Результаты") },
       { IDD_RESULTS, _T("Analysis Settings"), _T("Настройки анализа") },

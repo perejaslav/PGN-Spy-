@@ -69,7 +69,8 @@ public:
    int m_iSearchDepth;
    int m_iMaxTime;
    int m_iMinTime;
-   int m_iNumThreads;
+   int m_iEngineThreads;
+   int m_iParallelGames;
    int m_iHashSize; //in MB
    int m_iBookDepth;
 

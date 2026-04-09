@@ -83,6 +83,8 @@
 #define IDC_EXPORTANNOTATEDPGN          1082
 #define IDC_SAVEDPGNPATH                1083
 #define IDC_LANGUAGE                    1084
+#define IDC_PARALLELGAMES               1085
+#define IDC_HELPPARALLELGAMES           1086
 
 // Next default values for new objects
 // 
@@ -90,7 +92,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        133
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1085
+#define _APS_NEXT_CONTROL_VALUE         1087
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

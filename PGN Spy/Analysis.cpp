@@ -121,7 +121,8 @@ CEngineSettings::CEngineSettings()
    //subtract one to allow for the OS
    SYSTEM_INFO vSysInfo;
    GetSystemInfo(&vSysInfo);
-   m_iNumThreads = max((int)vSysInfo.dwNumberOfProcessors / 2, 1);
+   m_iParallelGames = max((int)vSysInfo.dwNumberOfProcessors / 2, 1);
+   m_iEngineThreads = 1;
 }
 
 bool CEngineSettings::LoadSettingsFromRegistry()
@@ -131,7 +132,8 @@ bool CEngineSettings::LoadSettingsFromRegistry()
    //subtract one to allow for the OS
    SYSTEM_INFO vSysInfo;
    GetSystemInfo(&vSysInfo);
-   int iDefaultThreads = max((int)vSysInfo.dwNumberOfProcessors / 2, 1);
+   int iDefaultParallelGames = max((int)vSysInfo.dwNumberOfProcessors / 2, 1);
+   int iLegacyThreads = theApp.GetProfileInt(_T("PGNSpy"), _T("NumThreads"), iDefaultParallelGames);
 
    m_iBookDepth = theApp.GetProfileInt(_T("PGNSpy"), _T("BookDepth"), 10);
    m_sEnginePath = theApp.GetProfileString(_T("PGNSpy"), _T("EnginePath"), _T(""));
@@ -139,7 +141,8 @@ bool CEngineSettings::LoadSettingsFromRegistry()
    m_iSearchDepth = theApp.GetProfileInt(_T("PGNSpy"), _T("SearchDepth"), 20);
    m_iMaxTime = theApp.GetProfileInt(_T("PGNSpy"), _T("MaxTime"), 20000);
    m_iMinTime = theApp.GetProfileInt(_T("PGNSpy"), _T("MinTime"), 10000);
-   m_iNumThreads = theApp.GetProfileInt(_T("PGNSpy"), _T("NumThreads"), iDefaultThreads);
+   m_iParallelGames = theApp.GetProfileInt(_T("PGNSpy"), _T("ParallelGames"), iLegacyThreads);
+   m_iEngineThreads = theApp.GetProfileInt(_T("PGNSpy"), _T("EngineThreads"), 1);
    m_iHashSize = theApp.GetProfileInt(_T("PGNSpy"), _T("HashSize"), 24);
    return true;
 }
@@ -152,7 +155,8 @@ bool CEngineSettings::SaveSettingsToRegistry()
    theApp.WriteProfileInt(_T("PGNSpy"), _T("SearchDepth"), m_iSearchDepth);
    theApp.WriteProfileInt(_T("PGNSpy"), _T("MaxTime"), m_iMaxTime);
    theApp.WriteProfileInt(_T("PGNSpy"), _T("MinTime"), m_iMinTime);
-   theApp.WriteProfileInt(_T("PGNSpy"), _T("NumThreads"), m_iNumThreads);
+   theApp.WriteProfileInt(_T("PGNSpy"), _T("ParallelGames"), m_iParallelGames);
+   theApp.WriteProfileInt(_T("PGNSpy"), _T("EngineThreads"), m_iEngineThreads);
    theApp.WriteProfileInt(_T("PGNSpy"), _T("HashSize"), m_iHashSize);
    return true;
 }
@@ -190,6 +194,12 @@ CEngineSettings CEngineSettings::MakeCompatible(const CEngineSettings vOtherEngi
       if (!rsWarning.IsEmpty())
          rsWarning += _T("\r\n");
       rsWarning += _T("The hash size setting does not match.");
+   }
+   if (m_iEngineThreads != vOtherEngineSettings.m_iEngineThreads)
+   {
+      if (!rsWarning.IsEmpty())
+         rsWarning += _T("\r\n");
+      rsWarning += _T("The engine thread setting does not match.");
    }
    if (m_iBookDepth != vOtherEngineSettings.m_iBookDepth)
    {
@@ -636,6 +646,14 @@ bool LoadGameArrayFromFile(CString sFileName, CArray<CGame, CGame> &raGames, CEn
    rvEngineSettings.m_iMaxTime = _ttoi(vFile.GetData());
    vFile.FindElem(_T("HashSize"));
    rvEngineSettings.m_iHashSize = _ttoi(vFile.GetData());
+   if (vFile.FindElem(_T("EngineThreads")))
+      rvEngineSettings.m_iEngineThreads = _ttoi(vFile.GetData());
+   else
+      rvEngineSettings.m_iEngineThreads = 1;
+   if (vFile.FindElem(_T("ParallelGames")))
+      rvEngineSettings.m_iParallelGames = _ttoi(vFile.GetData());
+   else
+      rvEngineSettings.m_iParallelGames = 1;
    vFile.FindElem(_T("BookDepth"));
    rvEngineSettings.m_iBookDepth = _ttoi(vFile.GetData());
    vFile.FindElem(_T("PlayerName"));
@@ -729,6 +747,8 @@ bool SaveGameArrayToFile(CString sFileName, const CArray<CGame, CGame> &raGames,
    vFile.AddElem(_T("MinTime"), vEngineSettings.m_iMinTime);
    vFile.AddElem(_T("MaxTime"), vEngineSettings.m_iMaxTime);
    vFile.AddElem(_T("HashSize"), vEngineSettings.m_iHashSize);
+    vFile.AddElem(_T("EngineThreads"), vEngineSettings.m_iEngineThreads);
+   vFile.AddElem(_T("ParallelGames"), vEngineSettings.m_iParallelGames);
    vFile.AddElem(_T("BookDepth"), vEngineSettings.m_iBookDepth);
    vFile.AddElem(_T("PlayerName"), vEngineSettings.m_sPlayerName);
    vFile.OutOfElem();

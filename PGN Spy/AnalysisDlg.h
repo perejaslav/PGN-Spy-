@@ -79,8 +79,8 @@ public:
    bool m_bStopped;
    bool m_bStatusChanged;
    int m_iProgressPercent;
-   int m_iTargetThreads;
-   int m_iMaxThreads;
+   int m_iTargetParallelGames;
+   int m_iMaxParallelGames;
    CString m_sConvertedPGN;
    CString m_sSavedResultsPath;
    CString m_sSavedPGNPath;
@@ -88,11 +88,14 @@ public:
    CString m_sAutoSavePGNError;
    CString m_sInputFilePath;
    EAnalysisState m_eState;
+   CArray<HANDLE, HANDLE> m_ahJobObjects;
    void UpdateThreadControlButtons();
    CString GetStateLabel() const;
    void UpdateProgressDisplay(const CString& sPhase, int iCompletedGames, int iTotalGames, int iActiveProcesses, const CString& sLastEvent = _T(""));
    void RequestStop();
    void CancelActiveProcesses();
+   void CloseThreadResources(int iThread);
+   void KillThreadProcessTree(int iThread);
    bool AutoSaveOutputs(bool bPartialResults);
    bool ProcessGames();
    bool LaunchAnalyser(CGamePGN vGamePGN, int iCurThread);

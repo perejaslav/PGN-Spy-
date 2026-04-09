@@ -111,8 +111,10 @@ void CPGNSpyDlg::DoDataExchange(CDataExchange* pDX)
    DDV_MinMaxInt(pDX, m_vEngineSettings.m_iSearchDepth, 1, 50);
    DDX_Text(pDX, IDC_BOOKDEPTH, m_vEngineSettings.m_iBookDepth);
    DDV_MinMaxInt(pDX, m_vEngineSettings.m_iBookDepth, 0, 30);
-   DDX_Text(pDX, IDC_NUMTHREADS, m_vEngineSettings.m_iNumThreads);
-   DDV_MinMaxInt(pDX, m_vEngineSettings.m_iNumThreads, 1, 128);
+   DDX_Text(pDX, IDC_NUMTHREADS, m_vEngineSettings.m_iEngineThreads);
+   DDV_MinMaxInt(pDX, m_vEngineSettings.m_iEngineThreads, 1, 128);
+   DDX_Text(pDX, IDC_PARALLELGAMES, m_vEngineSettings.m_iParallelGames);
+   DDV_MinMaxInt(pDX, m_vEngineSettings.m_iParallelGames, 1, 128);
    DDX_Text(pDX, IDC_MINTIME, m_vEngineSettings.m_iMinTime);
    DDV_MinMaxInt(pDX, m_vEngineSettings.m_iMinTime, 1, 60000);
    DDX_Text(pDX, IDC_MAXTIME, m_vEngineSettings.m_iMaxTime);
@@ -136,6 +138,7 @@ BEGIN_MESSAGE_MAP(CPGNSpyDlg, CDialog)
    ON_BN_CLICKED(IDC_HELPDEPTH, &CPGNSpyDlg::OnBnClickedHelpdepth)
    ON_BN_CLICKED(IDC_HELPBOOKDEPTH, &CPGNSpyDlg::OnBnClickedHelpbookdepth)
    ON_BN_CLICKED(IDC_HELPTHREADS, &CPGNSpyDlg::OnBnClickedHelpthreads)
+   ON_BN_CLICKED(IDC_HELPPARALLELGAMES, &CPGNSpyDlg::OnBnClickedHelpparallelgames)
    ON_BN_CLICKED(IDC_HELPMINTIME, &CPGNSpyDlg::OnBnClickedHelpmintime)
    ON_BN_CLICKED(IDC_HELPMAXTIME, &CPGNSpyDlg::OnBnClickedHelpmaxtime)
    ON_BN_CLICKED(IDC_HELPPHASHSIZE, &CPGNSpyDlg::OnBnClickedHelpphashsize)
@@ -378,9 +381,15 @@ bool CPGNSpyDlg::ValidateSettings()
 
    SYSTEM_INFO vSysInfo;
    GetSystemInfo(&vSysInfo);
-   if (m_vEngineSettings.m_iNumThreads > (int)vSysInfo.dwNumberOfProcessors)
+   if (m_vEngineSettings.m_iEngineThreads > (int)vSysInfo.dwNumberOfProcessors)
    {
-      MessageBox(Loc(_T("You have entered more threads than the number of processors present in your system."), _T("Указано больше потоков, чем доступно процессоров в системе.")), GetAppTitle(), MB_ICONEXCLAMATION);
+      MessageBox(Loc(_T("You have entered more engine threads than the number of processors present in your system."), _T("Указано больше потоков движка, чем доступно процессоров в системе.")), GetAppTitle(), MB_ICONEXCLAMATION);
+      return false;
+   }
+
+   if (m_vEngineSettings.m_iParallelGames > (int)vSysInfo.dwNumberOfProcessors)
+   {
+      MessageBox(Loc(_T("You have entered more parallel games than the number of processors present in your system."), _T("Указано больше параллельных партий, чем доступно процессоров в системе.")), GetAppTitle(), MB_ICONEXCLAMATION);
       return false;
    }
 
@@ -414,8 +423,16 @@ void CPGNSpyDlg::OnBnClickedHelpbookdepth()
 void CPGNSpyDlg::OnBnClickedHelpthreads()
 {
    CString sMessage = Loc(
-      _T("Specify the number of threads to use for analysis.\n\nTo improve consistency, the engine is limited to a single thread per analysed position. If several games are analysed on a multi-core machine, multiple games may still be processed simultaneously to finish the analysis faster.\n\nIf you leave this value at the default, PGN Spy may use all available CPU resources. Reduce it if you want to keep the computer responsive for other tasks.\n\nChess engines also usually benefit less from hyper-threading than from real cores, so it is recommended not to exceed the number of physical cores.\n\nThis value can be adjusted while analysis is running."),
-      _T("Укажите число потоков для анализа.\n\nДля устойчивости результатов движок использует только один поток на каждую анализируемую позицию. Однако на многоядерной системе несколько партий могут обрабатываться параллельно, что ускоряет общий анализ.\n\nЕсли оставить значение по умолчанию, PGN Spy может занять все доступные вычислительные ресурсы. Если во время анализа вы хотите пользоваться компьютером, это значение лучше уменьшить.\n\nТакже учтите, что шахматные движки обычно хуже масштабируются на hyper-threading, чем на реальные ядра. Поэтому не рекомендуется задавать значение выше числа физических ядер.\n\nЭто значение можно менять во время анализа."));
+      _T("Specify the number of CPU threads to give the engine.\n\nPGN Spy passes this value to the UCI engine as its Threads setting. A higher value allows the engine to use more cores while analysing.\n\nIf you change this setting while analysis is running, the new value is applied to analyser processes started after the change. Positions already being analysed keep their current engine thread count.\n\nDo not set this above the number of physical cores unless you have a specific reason to do so."),
+      _T("Укажите число потоков CPU, которое можно использовать движку.\n\nPGN Spy передаёт это значение в UCI-движок как параметр Threads. Чем выше значение, тем больше ядер движок сможет задействовать при анализе.\n\nЕсли изменить это значение во время анализа, новый параметр будет применён к процессам анализатора, которые запускаются после изменения. Уже запущенные позиции продолжают анализироваться с прежним числом потоков.\n\nБез особой причины не рекомендуется задавать значение выше числа физических ядер."));
+   MessageBox(sMessage, GetAppTitle(), MB_ICONINFORMATION);
+}
+
+void CPGNSpyDlg::OnBnClickedHelpparallelgames()
+{
+   CString sMessage = Loc(
+      _T("Specify how many games may be analysed at the same time.\n\nEach parallel game starts a separate analyser process. Increasing this value can improve throughput on multi-core systems, but it also increases CPU and memory usage.\n\nThe Increase/Decrease controls in the analysis window change this value for new analyser processes started after the change."),
+      _T("Укажите, сколько партий можно анализировать одновременно.\n\nДля каждой параллельной партии запускается отдельный процесс анализатора. Чем выше это значение, тем быстрее может идти общий анализ на многоядерной системе, но тем выше нагрузка на CPU и память.\n\nКнопки увеличения и уменьшения в окне анализа меняют именно это значение для новых процессов анализатора, которые запускаются после изменения."));
    MessageBox(sMessage, GetAppTitle(), MB_ICONINFORMATION);
 }
 

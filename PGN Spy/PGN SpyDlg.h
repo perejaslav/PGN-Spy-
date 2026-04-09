@@ -60,6 +60,7 @@ public:
    afx_msg void OnBnClickedHelpdepth();
    afx_msg void OnBnClickedHelpbookdepth();
    afx_msg void OnBnClickedHelpthreads();
+   afx_msg void OnBnClickedHelpparallelgames();
    afx_msg void OnBnClickedHelpmintime();
    afx_msg void OnBnClickedHelpmaxtime();
    afx_msg void OnBnClickedHelpphashsize();

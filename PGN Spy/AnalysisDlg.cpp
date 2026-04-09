@@ -44,8 +44,8 @@ CAnalysisDlg::CAnalysisDlg(CWnd* pParent /*=NULL*/)
    , m_bStopped(false)
    , m_bStatusChanged(true)
    , m_iProgressPercent(0)
-   , m_iTargetThreads(0)
-   , m_iMaxThreads(0)
+   , m_iTargetParallelGames(0)
+   , m_iMaxParallelGames(0)
    , m_eState(STATE_RUNNING)
 {
 
@@ -53,6 +53,7 @@ CAnalysisDlg::CAnalysisDlg(CWnd* pParent /*=NULL*/)
 
 CAnalysisDlg::~CAnalysisDlg()
 {
+   CancelActiveProcesses();
 }
 
 void CAnalysisDlg::DoDataExchange(CDataExchange* pDX)
@@ -85,7 +86,11 @@ BOOL CAnalysisDlg::OnInitDialog()
    m_vProgress.SetRange32(0, 100);
    m_vProgress.SetPos(0);
    m_sCurrentStatus = Loc(_T("Preparing analysis..."), _T("Подготовка анализа..."));
-   m_sProgressSummary = Loc(_T("0 of 0 games completed. 0 active threads."), _T("Завершено 0 из 0 партий. Активных потоков: 0."));
+   int iEngineThreads = max(m_vEngineSettings.m_iEngineThreads, 1);
+   m_sProgressSummary.Format(
+      Loc(_T("0 of 0 games completed. Active analysers: 0. Engine threads per analyser: %i. Total engine threads: 0."),
+          _T("Завершено 0 из 0 партий. Активных анализаторов: 0. Потоков движка на анализатор: %i. Всего потоков движка: 0.")),
+      iEngineThreads);
    UpdateData(FALSE);
    UpdateThreadControlButtons();
 
@@ -102,11 +107,11 @@ void CAnalysisDlg::OnTimer(UINT_PTR nIDEvent)
 
    CWaitCursor vWaitCursor;
 
-   m_iTargetThreads = m_vEngineSettings.m_iNumThreads;
+   m_iTargetParallelGames = m_vEngineSettings.m_iParallelGames;
 
    SYSTEM_INFO vSysInfo;
    GetSystemInfo(&vSysInfo);
-   m_iMaxThreads = (int)vSysInfo.dwNumberOfProcessors;
+   m_iMaxParallelGames = (int)vSysInfo.dwNumberOfProcessors;
    UpdateThreadControlButtons();
 
    //do stuff
@@ -120,8 +125,8 @@ void CAnalysisDlg::OnTimer(UINT_PTR nIDEvent)
 void CAnalysisDlg::UpdateThreadControlButtons()
 {
    bool bRunningState = m_eState == STATE_RUNNING;
-   GetDlgItem(IDC_INCREASETHREADS)->EnableWindow(bRunningState && m_iTargetThreads < m_iMaxThreads);
-   GetDlgItem(IDC_DECREASETHREADS)->EnableWindow(bRunningState && m_iTargetThreads > 1);
+   GetDlgItem(IDC_INCREASETHREADS)->EnableWindow(bRunningState && m_iTargetParallelGames < m_iMaxParallelGames);
+   GetDlgItem(IDC_DECREASETHREADS)->EnableWindow(bRunningState && m_iTargetParallelGames > 1);
 
    CString sPauseResumeText = (m_eState == STATE_PAUSED || m_eState == STATE_PAUSING)
       ? Loc(_T("Resume"), _T("Продолжить"))
@@ -186,7 +191,12 @@ void CAnalysisDlg::UpdateProgressDisplay(const CString& sPhase, int iCompletedGa
    else
       m_iProgressPercent = 0;
 
-   m_sProgressSummary.Format(Loc(_T("%i of %i games completed. %i active threads."), _T("Завершено %i из %i партий. Активных потоков: %i.")), iCompletedGames, iTotalGames, iActiveProcesses);
+   int iEngineThreads = max(m_vEngineSettings.m_iEngineThreads, 1);
+   int iTotalEngineThreads = iActiveProcesses * iEngineThreads;
+   m_sProgressSummary.Format(
+      Loc(_T("%i of %i games completed. Active analysers: %i. Engine threads per analyser: %i. Total engine threads: %i."),
+          _T("Завершено %i из %i партий. Активных анализаторов: %i. Потоков движка на анализатор: %i. Всего потоков движка: %i.")),
+      iCompletedGames, iTotalGames, iActiveProcesses, iEngineThreads, iTotalEngineThreads);
    if (!sLastEvent.IsEmpty())
       m_sProgressSummary += _T(" ") + sLastEvent;
 
@@ -303,17 +313,18 @@ bool CAnalysisDlg::ProcessGames()
 
    CStringArray asResults;
    CArray<bool, bool> abErrors;
-   asResults.SetSize(m_vEngineSettings.m_iNumThreads);
-   abErrors.SetSize(m_vEngineSettings.m_iNumThreads);
+   asResults.SetSize(m_vEngineSettings.m_iParallelGames);
+   abErrors.SetSize(m_vEngineSettings.m_iParallelGames);
    //initialize handles
-   m_ahChildStdInRead.SetSize(m_vEngineSettings.m_iNumThreads);
-   m_ahChildStdInWrite.SetSize(m_vEngineSettings.m_iNumThreads);
-   m_ahChildStdOutRead.SetSize(m_vEngineSettings.m_iNumThreads);
-   m_ahChildStdOutWrite.SetSize(m_vEngineSettings.m_iNumThreads);
-   m_ahChildStdErrRead.SetSize(m_vEngineSettings.m_iNumThreads);
-   m_ahChildStdErrWrite.SetSize(m_vEngineSettings.m_iNumThreads);
-   m_ahProcesses.SetSize(m_vEngineSettings.m_iNumThreads);
-   for (int i = 0; i < m_vEngineSettings.m_iNumThreads; i++)
+   m_ahChildStdInRead.SetSize(m_vEngineSettings.m_iParallelGames);
+   m_ahChildStdInWrite.SetSize(m_vEngineSettings.m_iParallelGames);
+   m_ahChildStdOutRead.SetSize(m_vEngineSettings.m_iParallelGames);
+   m_ahChildStdOutWrite.SetSize(m_vEngineSettings.m_iParallelGames);
+   m_ahChildStdErrRead.SetSize(m_vEngineSettings.m_iParallelGames);
+   m_ahChildStdErrWrite.SetSize(m_vEngineSettings.m_iParallelGames);
+   m_ahProcesses.SetSize(m_vEngineSettings.m_iParallelGames);
+   m_ahJobObjects.SetSize(m_vEngineSettings.m_iParallelGames);
+   for (int i = 0; i < m_vEngineSettings.m_iParallelGames; i++)
    {
       m_ahChildStdInRead[i] = NULL;
       m_ahChildStdInWrite[i] = NULL;
@@ -322,6 +333,7 @@ bool CAnalysisDlg::ProcessGames()
       m_ahChildStdErrRead[i] = NULL;
       m_ahChildStdErrWrite[i] = NULL;
       m_ahProcesses[i] = NULL;
+      m_ahJobObjects[i] = NULL;
       abErrors[i] = false;
    }
 
@@ -357,7 +369,7 @@ bool CAnalysisDlg::ProcessGames()
 
       bThreadsStillRunning = false; //we'll turn this on later if needed
                                     //check all processes to see if they're currently running
-      for (int iCurThread = 0; iCurThread < m_vEngineSettings.m_iNumThreads; iCurThread++)
+      for (int iCurThread = 0; iCurThread < m_vEngineSettings.m_iParallelGames; iCurThread++)
       {
          //if current process is free, kick off another process
          if (m_ahProcesses[iCurThread] == NULL)
@@ -392,20 +404,7 @@ bool CAnalysisDlg::ProcessGames()
             ReadFromThread(iCurThread, asResults[iCurThread], abErrors[iCurThread]);
 
             //close handles
-            CloseHandle(m_ahProcesses[iCurThread]);
-            CloseHandle(m_ahChildStdInRead[iCurThread]);
-            CloseHandle(m_ahChildStdInWrite[iCurThread]);
-            CloseHandle(m_ahChildStdOutRead[iCurThread]);
-            CloseHandle(m_ahChildStdOutWrite[iCurThread]);
-            CloseHandle(m_ahChildStdErrRead[iCurThread]);
-            CloseHandle(m_ahChildStdErrWrite[iCurThread]);
-            m_ahProcesses[iCurThread] = NULL;
-            m_ahChildStdInRead[iCurThread] = NULL;
-            m_ahChildStdInWrite[iCurThread] = NULL;
-            m_ahChildStdOutRead[iCurThread] = NULL;
-            m_ahChildStdOutWrite[iCurThread] = NULL;
-            m_ahChildStdErrRead[iCurThread] = NULL;
-            m_ahChildStdErrWrite[iCurThread] = NULL;
+            CloseThreadResources(iCurThread);
             iActiveProcesses--;
             iCompletedGames++;
 
@@ -430,7 +429,7 @@ bool CAnalysisDlg::ProcessGames()
             UpdateProgressDisplay(_T("Collecting analysis results..."), iCompletedGames, avGamePGNs.GetSize(), iActiveProcesses, sStatusLine);
 
             //check if we're supposed to be decrementing threads
-            if (m_iTargetThreads < m_vEngineSettings.m_iNumThreads)
+            if (m_iTargetParallelGames < m_vEngineSettings.m_iParallelGames)
             {
                //remove array members for current thread
                asResults.RemoveAt(iCurThread);
@@ -442,9 +441,10 @@ bool CAnalysisDlg::ProcessGames()
                m_ahChildStdErrRead.RemoveAt(iCurThread);
                m_ahChildStdErrWrite.RemoveAt(iCurThread);
                m_ahProcesses.RemoveAt(iCurThread);
+               m_ahJobObjects.RemoveAt(iCurThread);
 
                //decrement thread count
-               m_vEngineSettings.m_iNumThreads--;
+               m_vEngineSettings.m_iParallelGames--;
             }
          }
          else
@@ -465,28 +465,30 @@ bool CAnalysisDlg::ProcessGames()
       Sleep(50); //so we don't eat lots of CPU trying to check on every process constantly
 
       //check if we've incremented the thread count
-      if (m_eState == STATE_RUNNING && m_iTargetThreads > m_vEngineSettings.m_iNumThreads)
+      if (m_eState == STATE_RUNNING && m_iTargetParallelGames > m_vEngineSettings.m_iParallelGames)
       {
-         m_vEngineSettings.m_iNumThreads++;
+         m_vEngineSettings.m_iParallelGames++;
          //add a member to arrays and initialize values
-         asResults.SetSize(m_vEngineSettings.m_iNumThreads);
-         abErrors.SetSize(m_vEngineSettings.m_iNumThreads);
+         asResults.SetSize(m_vEngineSettings.m_iParallelGames);
+         abErrors.SetSize(m_vEngineSettings.m_iParallelGames);
          //initialize handles
-         m_ahChildStdInRead.SetSize(m_vEngineSettings.m_iNumThreads);
-         m_ahChildStdInWrite.SetSize(m_vEngineSettings.m_iNumThreads);
-         m_ahChildStdOutRead.SetSize(m_vEngineSettings.m_iNumThreads);
-         m_ahChildStdOutWrite.SetSize(m_vEngineSettings.m_iNumThreads);
-         m_ahChildStdErrRead.SetSize(m_vEngineSettings.m_iNumThreads);
-         m_ahChildStdErrWrite.SetSize(m_vEngineSettings.m_iNumThreads);
-         m_ahProcesses.SetSize(m_vEngineSettings.m_iNumThreads);
-         m_ahChildStdInRead[m_vEngineSettings.m_iNumThreads - 1] = NULL;
-         m_ahChildStdInWrite[m_vEngineSettings.m_iNumThreads - 1] = NULL;
-         m_ahChildStdOutRead[m_vEngineSettings.m_iNumThreads - 1] = NULL;
-         m_ahChildStdOutWrite[m_vEngineSettings.m_iNumThreads - 1] = NULL;
-         m_ahChildStdErrRead[m_vEngineSettings.m_iNumThreads - 1] = NULL;
-         m_ahChildStdErrWrite[m_vEngineSettings.m_iNumThreads - 1] = NULL;
-         m_ahProcesses[m_vEngineSettings.m_iNumThreads - 1] = NULL;
-         abErrors[m_vEngineSettings.m_iNumThreads - 1] = false;
+         m_ahChildStdInRead.SetSize(m_vEngineSettings.m_iParallelGames);
+         m_ahChildStdInWrite.SetSize(m_vEngineSettings.m_iParallelGames);
+         m_ahChildStdOutRead.SetSize(m_vEngineSettings.m_iParallelGames);
+         m_ahChildStdOutWrite.SetSize(m_vEngineSettings.m_iParallelGames);
+         m_ahChildStdErrRead.SetSize(m_vEngineSettings.m_iParallelGames);
+         m_ahChildStdErrWrite.SetSize(m_vEngineSettings.m_iParallelGames);
+         m_ahProcesses.SetSize(m_vEngineSettings.m_iParallelGames);
+         m_ahJobObjects.SetSize(m_vEngineSettings.m_iParallelGames);
+         m_ahChildStdInRead[m_vEngineSettings.m_iParallelGames - 1] = NULL;
+         m_ahChildStdInWrite[m_vEngineSettings.m_iParallelGames - 1] = NULL;
+         m_ahChildStdOutRead[m_vEngineSettings.m_iParallelGames - 1] = NULL;
+         m_ahChildStdOutWrite[m_vEngineSettings.m_iParallelGames - 1] = NULL;
+         m_ahChildStdErrRead[m_vEngineSettings.m_iParallelGames - 1] = NULL;
+         m_ahChildStdErrWrite[m_vEngineSettings.m_iParallelGames - 1] = NULL;
+         m_ahProcesses[m_vEngineSettings.m_iParallelGames - 1] = NULL;
+         m_ahJobObjects[m_vEngineSettings.m_iParallelGames - 1] = NULL;
+         abErrors[m_vEngineSettings.m_iParallelGames - 1] = false;
       }
    }
 
@@ -545,33 +547,77 @@ void CAnalysisDlg::RequestStop()
 
 void CAnalysisDlg::CancelActiveProcesses()
 {
-   for (int i = 0; i < m_vEngineSettings.m_iNumThreads; i++)
+   for (int i = 0; i < m_ahProcesses.GetSize(); i++)
    {
-      if (m_ahProcesses[i])
-      {
-         if (m_ahChildStdInWrite[i])
-         {
-            DWORD dwWritten = 0;
-            WriteFile(m_ahChildStdInWrite[i], _T("cancel"), 6, &dwWritten, NULL);
-         }
-
-         CloseHandle(m_ahProcesses[i]);
-         CloseHandle(m_ahChildStdInRead[i]);
-         CloseHandle(m_ahChildStdInWrite[i]);
-         CloseHandle(m_ahChildStdOutRead[i]);
-         CloseHandle(m_ahChildStdOutWrite[i]);
-         CloseHandle(m_ahChildStdErrRead[i]);
-         CloseHandle(m_ahChildStdErrWrite[i]);
-
-         m_ahProcesses[i] = NULL;
-         m_ahChildStdInRead[i] = NULL;
-         m_ahChildStdInWrite[i] = NULL;
-         m_ahChildStdOutRead[i] = NULL;
-         m_ahChildStdOutWrite[i] = NULL;
-         m_ahChildStdErrRead[i] = NULL;
-         m_ahChildStdErrWrite[i] = NULL;
-      }
+      KillThreadProcessTree(i);
+      CloseThreadResources(i);
    }
+}
+
+void CAnalysisDlg::CloseThreadResources(int iThread)
+{
+   if (m_ahProcesses[iThread] != NULL)
+   {
+      CloseHandle(m_ahProcesses[iThread]);
+      m_ahProcesses[iThread] = NULL;
+   }
+   if (m_ahJobObjects[iThread] != NULL)
+   {
+      CloseHandle(m_ahJobObjects[iThread]);
+      m_ahJobObjects[iThread] = NULL;
+   }
+   if (m_ahChildStdInRead[iThread] != NULL)
+   {
+      CloseHandle(m_ahChildStdInRead[iThread]);
+      m_ahChildStdInRead[iThread] = NULL;
+   }
+   if (m_ahChildStdInWrite[iThread] != NULL)
+   {
+      CloseHandle(m_ahChildStdInWrite[iThread]);
+      m_ahChildStdInWrite[iThread] = NULL;
+   }
+   if (m_ahChildStdOutRead[iThread] != NULL)
+   {
+      CloseHandle(m_ahChildStdOutRead[iThread]);
+      m_ahChildStdOutRead[iThread] = NULL;
+   }
+   if (m_ahChildStdOutWrite[iThread] != NULL)
+   {
+      CloseHandle(m_ahChildStdOutWrite[iThread]);
+      m_ahChildStdOutWrite[iThread] = NULL;
+   }
+   if (m_ahChildStdErrRead[iThread] != NULL)
+   {
+      CloseHandle(m_ahChildStdErrRead[iThread]);
+      m_ahChildStdErrRead[iThread] = NULL;
+   }
+   if (m_ahChildStdErrWrite[iThread] != NULL)
+   {
+      CloseHandle(m_ahChildStdErrWrite[iThread]);
+      m_ahChildStdErrWrite[iThread] = NULL;
+   }
+}
+
+void CAnalysisDlg::KillThreadProcessTree(int iThread)
+{
+   static const char sCancelCommand[] = "cancel\n";
+   if (m_ahChildStdInWrite[iThread] != NULL)
+   {
+      DWORD dwWritten = 0;
+      WriteFile(m_ahChildStdInWrite[iThread], sCancelCommand, (DWORD)(sizeof(sCancelCommand) - 1), &dwWritten, NULL);
+   }
+
+   if (m_ahJobObjects[iThread] != NULL)
+   {
+      TerminateJobObject(m_ahJobObjects[iThread], 1);
+   }
+   else if (m_ahProcesses[iThread] != NULL)
+   {
+      TerminateProcess(m_ahProcesses[iThread], 1);
+   }
+
+   if (m_ahProcesses[iThread] != NULL)
+      WaitForSingleObject(m_ahProcesses[iThread], 2000);
 }
 
 bool CAnalysisDlg::AutoSaveOutputs(bool bPartialResults)
@@ -722,11 +768,11 @@ bool CAnalysisDlg::LaunchAnalyser(CGamePGN vGamePGN, int iCurThread)
          ASSERT(false); //we should have discarded this game before this point
    }
    int iBookDepthPlies = m_vEngineSettings.m_iBookDepth * 2; //double book depth, since analyser uses plies, not moves
-   sCommandLine.Format(_T("--bookdepth %i --searchdepth %i --searchmaxtime %i --searchmintime %i --variations %i %s --setoption Hash %i --setoption Threads 1 --engine \"%s\" \"%s\""),
+   sCommandLine.Format(_T("--bookdepth %i --searchdepth %i --searchmaxtime %i --searchmintime %i --variations %i %s --setoption Hash %i --setoption Threads %i --engine \"%s\" \"%s\""),
       iBookDepthPlies, m_vEngineSettings.m_iSearchDepth, m_vEngineSettings.m_iMaxTime,
       m_vEngineSettings.m_iMinTime, m_vEngineSettings.m_iNumVariations + 1, sWhiteOrBlack,
-      m_vEngineSettings.m_iHashSize, m_vEngineSettings.m_sEnginePath, vGamePGN.m_sFileName);
-   if (!CreateProcess(GetAnalyserFilePath(), sCommandLine.GetBuffer(), NULL, NULL, TRUE, NORMAL_PRIORITY_CLASS, NULL, NULL, &vStartupInfo, &vProcessInfo))
+      m_vEngineSettings.m_iHashSize, m_vEngineSettings.m_iEngineThreads, m_vEngineSettings.m_sEnginePath, vGamePGN.m_sFileName);
+   if (!CreateProcess(GetAnalyserFilePath(), sCommandLine.GetBuffer(), NULL, NULL, TRUE, NORMAL_PRIORITY_CLASS | CREATE_SUSPENDED, NULL, NULL, &vStartupInfo, &vProcessInfo))
    {
       sCommandLine.ReleaseBuffer();
       DWORD dwError = GetLastError();
@@ -736,6 +782,26 @@ bool CAnalysisDlg::LaunchAnalyser(CGamePGN vGamePGN, int iCurThread)
    }
    sCommandLine.ReleaseBuffer();
    m_ahProcesses[iCurThread] = vProcessInfo.hProcess;
+
+   HANDLE hJob = CreateJobObject(NULL, NULL);
+   if (hJob != NULL)
+   {
+      JOBOBJECT_EXTENDED_LIMIT_INFORMATION vJobInfo;
+      ZeroMemory(&vJobInfo, sizeof(vJobInfo));
+      vJobInfo.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+      if (SetInformationJobObject(hJob, JobObjectExtendedLimitInformation, &vJobInfo, sizeof(vJobInfo)) &&
+         AssignProcessToJobObject(hJob, vProcessInfo.hProcess))
+      {
+         m_ahJobObjects[iCurThread] = hJob;
+      }
+      else
+      {
+         CloseHandle(hJob);
+         m_ahJobObjects[iCurThread] = NULL;
+      }
+   }
+
+   ResumeThread(vProcessInfo.hThread);
    CloseHandle(vProcessInfo.hThread);
    return true;
 }
@@ -779,14 +845,14 @@ bool CAnalysisDlg::ProcessOutput(CString sOutput)
 
 void CAnalysisDlg::OnBnClickedDecreasethreads()
 {
-   m_iTargetThreads--;
-   if (m_iTargetThreads < 1)
+   m_iTargetParallelGames--;
+   if (m_iTargetParallelGames < 1)
    {
       ASSERT(false);
-      m_iTargetThreads = 1;
+      m_iTargetParallelGames = 1;
    }
    CString sStatusLine;
-   sStatusLine.Format(_T("Number of threads will be decreased to %i as active threads are completed.\r\n"), m_iTargetThreads);
+   sStatusLine.Format(_T("Number of parallel games will be decreased to %i as active games are completed.\r\n"), m_iTargetParallelGames);
    m_sStatusHistory = sStatusLine + m_sStatusHistory;
    m_bStatusChanged = true;
    UpdateThreadControlButtons();
@@ -795,14 +861,14 @@ void CAnalysisDlg::OnBnClickedDecreasethreads()
 
 void CAnalysisDlg::OnBnClickedIncreasethreads()
 {
-   m_iTargetThreads++;
-   if (m_iTargetThreads > m_iMaxThreads)
+   m_iTargetParallelGames++;
+   if (m_iTargetParallelGames > m_iMaxParallelGames)
    {
       ASSERT(false);
-      m_iTargetThreads = m_iMaxThreads;
+      m_iTargetParallelGames = m_iMaxParallelGames;
    }
    CString sStatusLine;
-   sStatusLine.Format(_T("Number of threads increased to %i.\r\n"), m_iTargetThreads);
+   sStatusLine.Format(_T("Number of parallel games increased to %i.\r\n"), m_iTargetParallelGames);
    m_sStatusHistory = sStatusLine + m_sStatusHistory;
    m_bStatusChanged = true;
    UpdateThreadControlButtons();
