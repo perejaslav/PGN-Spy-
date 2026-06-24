@@ -1047,8 +1047,10 @@ static bool RunConverterToSAN(const CString &sInputPath, const CString &sOutputP
    vStartupInfo.wShowWindow = SW_HIDE;
 
    PROCESS_INFORMATION vProcessInfo = { 0 };
+   CString sEscapedInput = EscapeCmdArg(sInputPath);
+   CString sEscapedOutput = EscapeCmdArg(sOutputPath);
    CString sCommandLine;
-   sCommandLine.Format(_T("-s -Wsan -o\"%s\" \"%s\""), sOutputPath, sInputPath);
+   sCommandLine.Format(_T("-s -Wsan -o\"%s\" \"%s\""), sEscapedOutput, sEscapedInput);
    if (!CreateProcess(GetConverterFilePath(), sCommandLine.GetBuffer(), NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &vStartupInfo, &vProcessInfo))
    {
       sCommandLine.ReleaseBuffer();

@@ -58,3 +58,12 @@ CString GetAnalyserFilePath();
 CString GetConvertedPGNFilePath();
 CString GetTemporaryPGNFilePath(int i);
 CString GetDefaultAnalysisResultsFilePath(const CString& sInputFilePath);
+
+// Escape double-quote characters in a string for safe use in a command-line argument.
+// This prevents command injection via paths containing quotes or shell metacharacters.
+inline CString EscapeCmdArg(const CString& sArg)
+{
+   CString sEscaped(sArg);
+   sEscaped.Replace(_T("\""), _T("\\\""));
+   return sEscaped;
+}
