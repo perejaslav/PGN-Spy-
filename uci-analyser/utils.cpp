@@ -33,7 +33,7 @@
 int strToInt(const string &str)
 {
     stringstream ss(str);
-    int value;
+    int value = 0;
     ss >> value;
     return value;
 }
