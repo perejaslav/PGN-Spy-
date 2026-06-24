@@ -631,7 +631,7 @@ bool showEvaluationsForMove(const string &playedMove, bool white) {
     cout << playedMove << "</played>" << endl;
 
     cout << "<white>";
-    cout << (white) ? "1" : "0";
+    cout << ((white) ? "1" : "0");
     cout << "</white>" << endl;
 
     // Whether the playedMove was one of those evaluated.
@@ -722,10 +722,10 @@ void outputTag(const string& tagLine)
     escapeForXML(value, "&", "&amp;");
     // Escape any quote characters.
     string escaped_quote("\\\"");
-    size_t qindex = value.find_first_of(escaped_quote);
+    size_t qindex = value.find(escaped_quote);
     while(qindex != string::npos) {
         value.replace(qindex, 2, "&quot;");
-	qindex = value.find_first_of(escaped_quote);
+		qindex = value.find(escaped_quote);
     }
     cout << "\"" << value << "\"" << " />" << endl;
 }
