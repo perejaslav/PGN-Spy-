@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
 //    Sleep(30000); //to allow attaching the debugger
     bool ok = true;
     int argnum = 1;
-    if (strncmp(argv[argnum], "--", 2) != 0)
+    if (argc > 1 && strncmp(argv[argnum], "--", 2) != 0)
        argnum = 0; //depending on how the process is launched, sometimes the exe path comes in argv[0]
 
 
