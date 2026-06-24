@@ -33,11 +33,9 @@
 
 #include "utils.h"
 
-DWORD WINAPI EngineMonitor(_In_ LPVOID lpParameter);
-bool g_bEngineClosed = false;
-int g_iResponseCount = 0;
-bool g_bWaitingForResponse = false;
-Engine *g_eEngineForMonitor = NULL;
+// Engine state now lives on the Engine instance as atomic members.
+// No more global variables — see engine.h for m_bEngineClosed, m_bWaitingForResponse,
+// m_iResponseCount, and m_responseBuffer.
 
 namespace {
 
@@ -89,7 +87,6 @@ void Engine::clearHash(void) {
 void Engine::go(void) {
    stringstream ss;
    ss << "go infinite";
-   //    ss << "go depth " << searchDepth;
    send(ss.str());
 }
 
@@ -186,7 +183,6 @@ bool Engine::readUciOptions(void) {
 void Engine::searchMoves(const string& moves) {
     stringstream ss;
     ss << "go infinite searchmoves " + moves;
-//    ss << "go depth " << searchDepth << " searchmoves " + moves;
     send(ss.str());
 }
 
@@ -225,18 +221,35 @@ bool Engine::checkIsReady(void) {
 }
 
 void Engine::quitEngine(void) {
-    if (g_bEngineClosed)
+    if (m_bEngineClosed)
         return;
 
-    g_bEngineClosed = true;
-    g_eEngineForMonitor = NULL;
+    m_bEngineClosed = true;
 
     send("quit");
 
     if (hEngineMonitor != NULL) {
+        // Wait for monitor thread to finish before closing the handle.
+        WaitForSingleObject(hEngineMonitor, 30000);
         CloseHandle(hEngineMonitor);
         hEngineMonitor = NULL;
     }
+
+#ifdef _WIN32
+    // Close pipe handles to avoid resource leaks.
+    if (writeToEngine != NULL) {
+        CloseHandle(writeToEngine);
+        writeToEngine = NULL;
+    }
+    if (readFromEngine != NULL) {
+        CloseHandle(readFromEngine);
+        readFromEngine = NULL;
+    }
+    if (m_hEngineProcess != NULL) {
+        CloseHandle(m_hEngineProcess);
+        m_hEngineProcess = NULL;
+    }
+#endif
 }
 
 /*
@@ -250,7 +263,6 @@ void Engine::send(const string &str) {
  * Send the given string to the engine.
  */
 void Engine::send(const char *str) {
-	//cout << "# Send: " << str << endl;
 #ifdef __unix__
     fprintf(toEngine, "%s\n", str);
     fflush(toEngine);
@@ -287,101 +299,73 @@ bool Engine::waitForResponse(const char *str) {
 /*
  * Read and return a single line of response from the engine.
  * Set eof if the end of file is reached.
+ *
+ * Uses m_responseBuffer (a member std::string) to retain partial
+ * reads across calls, replacing the old static char buffer[] for
+ * thread safety and reentrancy.
  */
 string Engine::getResponse(bool& eof) {
-	const int MAXBUFF = 1000;
-	// Since the reads are not guaranteed to be line-based, buffer retains
-	// text read but not returned on a previous call.
-    static char buffer[MAXBUFF + 1] = "";
-	// What is returned.
+    const int MAXBUFF = 1000;
     string result;
     bool endOfLine = false;
-	//cout << "# get response" << endl;
-	eof = false;
-	while (!endOfLine && !eof) {
-		if (*buffer == '\0') {
-			// Nothing left from the previous read.
-#if __unix__
-			char *readResult = fgets(buffer, MAXBUFF, fromEngine);
-			if (readResult == NULL) {
-				eof = true;
-			}
-#else
-
-#ifdef _DEBUG
-         DWORD bytesAvailable;
-         do 
-         {
-            PeekNamedPipe(readFromEngine, NULL, NULL, NULL, &bytesAvailable, NULL);
-            if (bytesAvailable > 0)
-               break;
-
-            if (false)
-            {
-               HANDLE engineLog;
-               engineLog = CreateFile("C:\\Source\\Other NonWork\\engine.log", GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-
-               DWORD bytesWritten;
-               for (unsigned int i = 0; i < communications.length(); i++)
-                  WriteFile(engineLog, &communications[i], 1, &bytesWritten, NULL);
-               CloseHandle(engineLog);
-            }
-            Sleep(10);
-         } while (bytesAvailable == 0);
-#endif
-         DWORD bytesRead;
-         g_bWaitingForResponse = true;
-         DWORD success = ReadFile(readFromEngine, buffer, MAXBUFF, &bytesRead, NULL);
-         g_bWaitingForResponse = false;
-         g_iResponseCount++;
-         buffer[bytesRead] = '\0';
-         eof = !success || bytesRead == 0;
-#endif
-		}
-		if (!eof) {
-			// Look for the end of the line, which might not have been read.
-			// NB: There is a boundary error possible here, where a \n\r combination
-			// is split across two reads. If that happens then the second char will be
-			// treated as a spurious blank line.
-			int index = 0;
-			char ch = buffer[index];
-			while (ch != '\0' && ch != '\n' && ch != '\r') {
-				index++;
-				ch = buffer[index];
-			}
-			if (ch == '\n' || ch == '\r') {
-				endOfLine = true;
-				buffer[index] = '\0';
-				index++;
-				char nextChar = buffer[index];
-				if (nextChar == '\n' || nextChar == '\r') {
-					index++;
-				}
-			}
-			// Concatenate up to the end of line, or everything if not
-			// at the end of the line.
-			result += buffer;
-			// Retain any left.
-			if (endOfLine) {
+    eof = false;
+    while (!endOfLine && !eof) {
+        if (m_responseBuffer.empty()) {
+            // Nothing left from the previous read.
 #ifdef __unix__
-				strcpy(buffer, &buffer[index]);
+            char buffer[MAXBUFF + 1];
+            char *readResult = fgets(buffer, MAXBUFF, fromEngine);
+            if (readResult == NULL) {
+                eof = true;
+            } else {
+                m_responseBuffer = buffer;
+            }
 #else
-				strcpy_s(buffer, &buffer[index]);
+            char buffer[MAXBUFF + 1] = {};
+            DWORD bytesRead;
+            m_bWaitingForResponse = true;
+            DWORD success = ReadFile(readFromEngine, buffer, MAXBUFF, &bytesRead, NULL);
+            m_bWaitingForResponse = false;
+            m_iResponseCount++;
+            if (!success || bytesRead == 0) {
+                eof = true;
+            } else {
+                buffer[bytesRead] = '\0';
+                m_responseBuffer = buffer;
+            }
 #endif
-			}
-			else {
-				*buffer = '\0';
-			}
-		}
-	}
-	if (!eof) {
-		//cout << "# [" << result << "]" << endl;
-	}
+        }
+        if (!eof) {
+            // Look for the end of the line in the buffer.
+            size_t index = 0;
+            while (index < m_responseBuffer.size() &&
+                   m_responseBuffer[index] != '\n' &&
+                   m_responseBuffer[index] != '\r') {
+                index++;
+            }
+            if (index < m_responseBuffer.size() &&
+                (m_responseBuffer[index] == '\n' || m_responseBuffer[index] == '\r')) {
+                endOfLine = true;
+                result = m_responseBuffer.substr(0, index);
+                index++;
+                if (index < m_responseBuffer.size() &&
+                    (m_responseBuffer[index] == '\n' || m_responseBuffer[index] == '\r')) {
+                    index++;
+                }
+                // Retain the remainder after the line terminator.
+                m_responseBuffer = m_responseBuffer.substr(index);
+            } else {
+                // No complete line yet; take everything read so far.
+                result += m_responseBuffer;
+                m_responseBuffer.clear();
+            }
+        }
+    }
 #ifdef _DEBUG
     communications.append("\nEngine:\t");
     communications.append(result);
 #endif
-	return result;
+    return result;
 }
 
 #ifdef __unix__
@@ -397,7 +381,7 @@ string Engine::getResponse(bool& eof) {
  * Start the given engine.
  */
 bool Engine::startEngine(const string& engineName) {
-#if __unix__
+#ifdef __unix__
     int parentToChild[2];
     int childToParent[2];
     string dataReadFromChild;
@@ -413,7 +397,6 @@ bool Engine::startEngine(const string& engineName) {
         case 0: /* Child */
             ASSERT_NOT(-1, dup2(parentToChild[ READFD ], STDIN_FILENO));
             ASSERT_NOT(-1, dup2(childToParent[ WRITEFD ], STDOUT_FILENO));
-            //ASSERT_NOT(-1, dup2( childToParent[ WRITEFD ], STDERR_FILENO ) );
             ASSERT_IS(0, close(parentToChild [ WRITEFD ]));
             ASSERT_IS(0, close(childToParent [ READFD ]));
 
@@ -438,111 +421,124 @@ bool Engine::startEngine(const string& engineName) {
             return true;
     }
 #else
-	/* The windows version of startEngine is heavily based on the code found in the article,
-	 * "Creating a Child Process with Redirected Input and Output"
-	 * at http://msdn.microsoft.com/en-us/library/windows/desktop/ms682499%28v=vs.85%29.aspx
-	*/
-	SECURITY_ATTRIBUTES saAttr;
+    /* The windows version of startEngine is heavily based on the code found in the article,
+     * "Creating a Child Process with Redirected Input and Output"
+     * at http://msdn.microsoft.com/en-us/library/windows/desktop/ms682499%28v=vs.85%29.aspx
+    */
+    SECURITY_ATTRIBUTES saAttr;
 
-	// Set the bInheritHandle flag so pipe handles are inherited. 
+    // Set the bInheritHandle flag so pipe handles are inherited. 
 
-	saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
-	saAttr.bInheritHandle = TRUE;
-	saAttr.lpSecurityDescriptor = NULL;
+    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+    saAttr.bInheritHandle = TRUE;
+    saAttr.lpSecurityDescriptor = NULL;
 
-	// Create a pipe for the child process's STDOUT. 
-	HANDLE unusedChildStdinRead, unusedChildStdoutWrite;
+    // Create a pipe for the child process's STDOUT. 
+    HANDLE unusedChildStdinRead = NULL, unusedChildStdoutWrite = NULL;
 
-	if (!CreatePipe(&readFromEngine, &unusedChildStdoutWrite, &saAttr, 0)) {
-		cerr << "Failed to create the pipe for reading from the engine." << endl;
-		return false;
-	}
+    if (!CreatePipe(&readFromEngine, &unusedChildStdoutWrite, &saAttr, 0)) {
+        cerr << "Failed to create the pipe for reading from the engine." << endl;
+        return false;
+    }
 
-	// Ensure the read handle to the pipe for STDOUT is not inherited.
+    // Ensure the read handle to the pipe for STDOUT is not inherited.
 
-	if (!SetHandleInformation(readFromEngine, HANDLE_FLAG_INHERIT, 0)) {
-		cerr << "Failed to set up the file handle to read from the engine." << endl;
-		return false;
-	}
+    if (!SetHandleInformation(readFromEngine, HANDLE_FLAG_INHERIT, 0)) {
+        cerr << "Failed to set up the file handle to read from the engine." << endl;
+        CloseHandle(readFromEngine);
+        readFromEngine = NULL;
+        CloseHandle(unusedChildStdoutWrite);
+        return false;
+    }
 
-	// Create a pipe for the child process's STDIN. 
+    // Create a pipe for the child process's STDIN. 
 
-	if (!CreatePipe(&unusedChildStdinRead, &writeToEngine, &saAttr, 0)) {
-		cerr << "Failed to set up the file handle to write to the engine." << endl;
-		return false;
-	}
+    if (!CreatePipe(&unusedChildStdinRead, &writeToEngine, &saAttr, 0)) {
+        cerr << "Failed to set up the file handle to write to the engine." << endl;
+        CloseHandle(readFromEngine);
+        readFromEngine = NULL;
+        CloseHandle(unusedChildStdoutWrite);
+        return false;
+    }
 
-	// Ensure the write handle to the pipe for STDIN is not inherited. 
+    // Ensure the write handle to the pipe for STDIN is not inherited. 
 
-	if (!SetHandleInformation(writeToEngine, HANDLE_FLAG_INHERIT, 0)){
-		cerr << "Failed to create the pipe for writing to the engine." << endl;
-		return false;
-	}
+    if (!SetHandleInformation(writeToEngine, HANDLE_FLAG_INHERIT, 0)){
+        cerr << "Failed to create the pipe for writing to the engine." << endl;
+        CloseHandle(writeToEngine);
+        writeToEngine = NULL;
+        CloseHandle(readFromEngine);
+        readFromEngine = NULL;
+        CloseHandle(unusedChildStdinRead);
+        CloseHandle(unusedChildStdoutWrite);
+        return false;
+    }
 
-	// Create the child process. 
-	PROCESS_INFORMATION piProcInfo;
-	STARTUPINFO siStartInfo;
-	BOOL bSuccess = FALSE;
+    // Create the child process. 
+    PROCESS_INFORMATION piProcInfo;
+    STARTUPINFO siStartInfo;
+    BOOL bSuccess = FALSE;
 
-	// Set up members of the PROCESS_INFORMATION structure. 
+    // Set up members of the PROCESS_INFORMATION structure. 
 
-	ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
+    ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
 
-	// Set up members of the STARTUPINFO structure. 
-	// This structure specifies the STDIN and STDOUT handles for redirection.
+    // Set up members of the STARTUPINFO structure. 
+    // This structure specifies the STDIN and STDOUT handles for redirection.
 
-	ZeroMemory(&siStartInfo, sizeof(STARTUPINFO));
-	siStartInfo.cb = sizeof(STARTUPINFO);
-	siStartInfo.hStdError = unusedChildStdoutWrite;
-	siStartInfo.hStdOutput = unusedChildStdoutWrite;
-	siStartInfo.hStdInput = unusedChildStdinRead;
-	siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
+    ZeroMemory(&siStartInfo, sizeof(STARTUPINFO));
+    siStartInfo.cb = sizeof(STARTUPINFO);
+    siStartInfo.hStdError = unusedChildStdoutWrite;
+    siStartInfo.hStdOutput = unusedChildStdoutWrite;
+    siStartInfo.hStdInput = unusedChildStdinRead;
+    siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
 
-	// Create the child process. 
-	string commandLine = "\"" + engineName + "\"";
-	vector<char> commandLineBuffer(commandLine.begin(), commandLine.end());
-	commandLineBuffer.push_back('\0');
-	bSuccess = CreateProcessA(engineName.c_str(),
-		&commandLineBuffer[0],     // command line 
-		NULL,          // process security attributes 
-		NULL,          // primary thread security attributes 
-		TRUE,          // handles are inherited 
-		0,             // creation flags 
-		NULL,          // use parent's environment 
-		NULL,          // use parent's current directory 
-		&siStartInfo,  // STARTUPINFO pointer 
-		&piProcInfo);  // receives PROCESS_INFORMATION 
+    // Create the child process. 
+    string commandLine = "\"" + engineName + "\"";
+    vector<char> commandLineBuffer(commandLine.begin(), commandLine.end());
+    commandLineBuffer.push_back('\0');
+    bSuccess = CreateProcessA(engineName.c_str(),
+        &commandLineBuffer[0],     // command line 
+        NULL,          // process security attributes 
+        NULL,          // primary thread security attributes 
+        TRUE,          // handles are inherited 
+        0,             // creation flags 
+        NULL,          // use parent's environment 
+        NULL,          // use parent's current directory 
+        &siStartInfo,  // STARTUPINFO pointer 
+        &piProcInfo);  // receives PROCESS_INFORMATION 
 
-	CloseHandle(unusedChildStdinRead);
-	CloseHandle(unusedChildStdoutWrite);
+    CloseHandle(unusedChildStdinRead);
+    CloseHandle(unusedChildStdoutWrite);
 
-	// If an error occurs, exit the application. 
-	if (!bSuccess) {
-		cerr << "Failed to create the process: " << engineName << endl;
-		return false;
-	}
-	else
-	{
-		// Close handles to the child process and its primary thread.
-		// Some applications might keep these handles to monitor the status
-		// of the child process, for example. 
+    // If an error occurs, exit the application. 
+    if (!bSuccess) {
+        cerr << "Failed to create the process: " << engineName << endl;
+        CloseHandle(writeToEngine);
+        writeToEngine = NULL;
+        CloseHandle(readFromEngine);
+        readFromEngine = NULL;
+        return false;
+    }
+    else
+    {
+        // Close handles to the child process and its primary thread.
+        CloseHandle(piProcInfo.hThread);
+        // Keep piProcInfo.hProcess for the monitor thread; will close in quitEngine.
+        m_hEngineProcess = piProcInfo.hProcess;
+    }
 
-//		CloseHandle(piProcInfo.hProcess);
-		CloseHandle(piProcInfo.hThread);
-	}
-
-   g_bEngineClosed = false;
-   g_bWaitingForResponse = false;
-   g_iResponseCount = 0;
-   g_eEngineForMonitor = this;
+   m_bEngineClosed = false;
+   m_bWaitingForResponse = false;
+   m_iResponseCount = 0;
+   m_responseBuffer.clear();
 
    SECURITY_ATTRIBUTES saThreadAttrib;
    saThreadAttrib.bInheritHandle = TRUE;
    saThreadAttrib.nLength = sizeof(SECURITY_ATTRIBUTES);
    saThreadAttrib.lpSecurityDescriptor = NULL;
    DWORD dwThreadID;
-//   Sleep(30000); //to allow attaching the debugger
-   hEngineMonitor = CreateThread(&saThreadAttrib, 0, &EngineMonitor, piProcInfo.hProcess, 0, &dwThreadID);
+   hEngineMonitor = CreateThread(&saThreadAttrib, 0, &EngineMonitorStatic, this, 0, &dwThreadID);
 
 #ifdef _DEBUG
    communications = "";
@@ -552,64 +548,65 @@ bool Engine::startEngine(const string& engineName) {
    return true;
 }
 
-DWORD WINAPI EngineMonitor(_In_ LPVOID lpParameter)
+DWORD WINAPI Engine::EngineMonitorStatic(_In_ LPVOID lpParameter)
 {
-//   Sleep(30000); //to allow attaching the debugger
-   int iPrevResponseCount = 0;
-   HANDLE hEngineProcess = lpParameter;
-   int iEngineLockedCount = 0;
-   while (!g_bEngineClosed)
-   {
-      if (WaitForSingleObject(hEngineProcess, 5000) == WAIT_OBJECT_0)
-      {
-         //sleep for two seconds in case the engine closed legitimately; if so, this will give
-         //the main thread plenty of time to set g_bEngineClosed
-         Sleep(2000);
-         break;
-      }
-      else if (g_bWaitingForResponse && iPrevResponseCount == g_iResponseCount)
-      {
-         //if we've been waiting for a response from the engine, wait until it's been locked for 60 seconds
-         //before we assume it's unresponsive and kill it
-         iEngineLockedCount++;
-         if (iEngineLockedCount > 20)
-         {
-            if (g_eEngineForMonitor != NULL)
-               g_eEngineForMonitor->quitEngine();
-            else
-               TerminateProcess(hEngineProcess, 0);
-         }
-      }
-      else
-      {
-         //Engine is responding normally, reset locked count
-         iEngineLockedCount = 0;
-      }
-      iPrevResponseCount = g_iResponseCount;
+    Engine* pEngine = static_cast<Engine*>(lpParameter);
+    int iPrevResponseCount = 0;
+    int iEngineLockedCount = 0;
+    while (!pEngine->m_bEngineClosed)
+    {
+        if (WaitForSingleObject(pEngine->m_hEngineProcess, 5000) == WAIT_OBJECT_0)
+        {
+            // Sleep for two seconds in case the engine closed legitimately.
+            Sleep(2000);
+            break;
+        }
+        else if (pEngine->m_bWaitingForResponse && iPrevResponseCount == pEngine->m_iResponseCount)
+        {
+            // If we've been waiting for a response, wait until locked for ~100 seconds
+            // before assuming unresponsive and killing the engine.
+            iEngineLockedCount++;
+            if (iEngineLockedCount > 20)
+            {
+                if (!pEngine->m_bEngineClosed)
+                    pEngine->quitEngine();
+            }
+        }
+        else
+        {
+            // Engine is responding normally, reset locked count.
+            iEngineLockedCount = 0;
+        }
+        iPrevResponseCount = pEngine->m_iResponseCount;
 
-      HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
-      DWORD dwBytesAvailable = 0;
-      PeekNamedPipe(hStdIn, NULL, NULL, NULL, &dwBytesAvailable, NULL);
-      if (dwBytesAvailable > 0)
-      {
-         static char buffer[500] = "";
-         DWORD dwBytesToRead = (dwBytesAvailable > 500) ? 500 : dwBytesAvailable;
-         DWORD bytesRead;
-         DWORD success = ReadFile(hStdIn, buffer, dwBytesToRead, &bytesRead, NULL);
-         if (strstr(buffer, "cancel") != NULL)
-         {
-            if (!g_bEngineClosed)
-               TerminateProcess(hEngineProcess, 0);
-//                g_eEngineForMonitor->quitEngine();
-            ExitProcess(0);
-         }
-      }
-   }
-   CloseHandle(hEngineProcess);
-   if (!g_bEngineClosed)
-   {
-      //engine closed unexpectedly; exit process instead of letting the main process hang waiting for a response
-      ExitProcess(1);
-   }
-   return 0;
+        // Check stdin for "cancel" command.
+        HANDLE hStdIn = GetStdHandle(STD_INPUT_HANDLE);
+        DWORD dwBytesAvailable = 0;
+        PeekNamedPipe(hStdIn, NULL, NULL, NULL, &dwBytesAvailable, NULL);
+        if (dwBytesAvailable > 0)
+        {
+            char buffer[500] = "";
+            DWORD dwBytesToRead = (dwBytesAvailable > 500) ? 500 : dwBytesAvailable;
+            DWORD bytesRead;
+            DWORD success = ReadFile(hStdIn, buffer, dwBytesToRead, &bytesRead, NULL);
+            if (success && strstr(buffer, "cancel") != NULL)
+            {
+                if (!pEngine->m_bEngineClosed)
+                    TerminateProcess(pEngine->m_hEngineProcess, 0);
+                ExitProcess(0);
+            }
+        }
+    }
+    // Close the engine process handle now owned by this thread
+    // (if quitEngine hasn't already closed it).
+    if (pEngine->m_hEngineProcess != NULL) {
+        CloseHandle(pEngine->m_hEngineProcess);
+        pEngine->m_hEngineProcess = NULL;
+    }
+    if (!pEngine->m_bEngineClosed)
+    {
+        // Engine closed unexpectedly; exit process instead of hanging.
+        ExitProcess(1);
+    }
+    return 0;
 }

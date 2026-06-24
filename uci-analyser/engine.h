@@ -39,6 +39,7 @@
 #include <string>
 #include <map>
 #include <set>
+#include <atomic>
 
 using namespace std;
 
@@ -54,6 +55,7 @@ public:
         readFromEngine = NULL;
 #endif
         hEngineMonitor = NULL;
+        m_hEngineProcess = NULL;
         variations = 0;
         searchDepth = 0;
         searchMaxTime = 0;
@@ -65,6 +67,7 @@ public:
     }
 
     virtual ~Engine() {
+        quitEngine();
     }
 
     bool checkIsReady(void);
@@ -100,9 +103,20 @@ private:
     // Communication to and from the engine.
     FILE *toEngine, *fromEngine;
 #else
-	HANDLE writeToEngine;
-	HANDLE readFromEngine;
+    HANDLE writeToEngine;
+    HANDLE readFromEngine;
 #endif
+
+    // Thread-safe engine state (accessed from both main and monitor threads).
+    atomic<bool> m_bEngineClosed{false};
+    atomic<bool> m_bWaitingForResponse{false};
+    atomic<int> m_iResponseCount{0};
+
+    // Buffer for partial reads in getResponse (replaces old static buffer).
+    string m_responseBuffer;
+
+    // Handle to the engine process (used by monitor thread).
+    HANDLE m_hEngineProcess;
 
 #ifdef _DEBUG
     string communications;
@@ -118,7 +132,9 @@ private:
 
     bool readUciOptions(void);
     bool startEngine(const string&);
+
+    // Static wrapper for monitor thread; accesses Engine members through the parameter.
+    static DWORD WINAPI EngineMonitorStatic(_In_ LPVOID lpParameter);
 };
 
 #endif
-
