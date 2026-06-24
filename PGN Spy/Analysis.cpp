@@ -256,6 +256,8 @@ CPosition &CPosition::operator=(const CPosition &rSrc)
 
 bool CPosition::IsForcedMove(int iVariation, int iForcedMoveThreshold)
 {
+   if (m_avTopMoves.GetSize() == 0)
+      return false;
    //ensure there's at least one move not significantly worse than the current move
    if (m_avTopMoves.GetSize() <= iVariation + 1)
       return true; //not enough legal moves
@@ -266,6 +268,8 @@ bool CPosition::IsForcedMove(int iVariation, int iForcedMoveThreshold)
 
 bool CPosition::IsUnclearPosition(int iVariation, int iUnclearPositionThreshold)
 {
+   if (m_avTopMoves.GetSize() == 0)
+      return false;
    //ensure n+1 move is not significantly worse than the first-choice move
    if (m_avTopMoves.GetSize() <= iVariation + 1)
       return false; //not enough legal moves
@@ -276,31 +280,39 @@ bool CPosition::IsUnclearPosition(int iVariation, int iUnclearPositionThreshold)
 
 bool CPosition::IsEqualPosition(int iEqualPositionThreshold)
 {
+   if (m_avTopMoves.GetSize() == 0)
+      return false;
    return abs(m_avTopMoves[0].m_iScore) <= iEqualPositionThreshold;
 }
 
 bool CPosition::IsLosingPosition(int iEqualPositionThreshold, int iLosingPositionThreshold)
 {
-   if (IsEqualPosition(iEqualPositionThreshold))
+   if (m_avTopMoves.GetSize() == 0 || IsEqualPosition(iEqualPositionThreshold))
       return false;
    return m_avTopMoves[0].m_iScore < 0 && abs(m_avTopMoves[0].m_iScore) <= iLosingPositionThreshold;
 }
 
 bool CPosition::IsWinningPosition(int iEqualPositionThreshold, int iLosingPositionThreshold)
 {
-   if (IsEqualPosition(iEqualPositionThreshold))
+   if (m_avTopMoves.GetSize() == 0 || IsEqualPosition(iEqualPositionThreshold))
       return false;
    return m_avTopMoves[0].m_iScore > 0 && abs(m_avTopMoves[0].m_iScore) <= iLosingPositionThreshold;
 }
 
 bool CPosition::IsExcludedPosition(int iLosingPositionThreshold)
 {
+   if (m_avTopMoves.GetSize() == 0)
+      return false;
    return abs(m_avTopMoves[0].m_iScore) > iLosingPositionThreshold;
 }
 
 int CPosition::GetCentipawnLoss()
 {
    //[0] will have the highest value; positive is winning, negative losing
+   if (m_avTopMoves.GetSize() == 0)
+      return 0;
+   if (m_iMovePlayed < 0 || m_iMovePlayed >= m_avTopMoves.GetSize())
+      return 0;
    return m_avTopMoves[0].m_iScore - m_avTopMoves[m_iMovePlayed].m_iScore;
 }
 
@@ -522,7 +534,7 @@ void CStats::FinaliseStats()
       m_dAvgCentipawnLoss = 0;
 
    double dTotalVariance = 0;
-   for (int i = 0; i < m_iNumPositions; i++)
+   for (int i = 0; i < m_aiCentipawnLosses.GetSize(); i++)
    {
       double dDiffFromMean = (double)m_aiCentipawnLosses[i] - m_dAvgCentipawnLoss;
       dTotalVariance += dDiffFromMean * dDiffFromMean;

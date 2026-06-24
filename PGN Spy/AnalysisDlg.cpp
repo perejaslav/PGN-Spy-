@@ -705,6 +705,34 @@ bool CAnalysisDlg::LaunchAnalyser(CGamePGN vGamePGN, int iCurThread)
    vAttrib.bInheritHandle = TRUE;
    vAttrib.lpSecurityDescriptor = NULL;
 
+   // Helper to safely close an array handle and set to NULL.
+   auto CloseArrayHandle = [&](CArray<HANDLE, HANDLE>& aHandles, int iIndex) {
+      if (iIndex >= 0 && iIndex < aHandles.GetSize() && aHandles[iIndex] != NULL)
+      {
+         CloseHandle(aHandles[iIndex]);
+         aHandles[iIndex] = NULL;
+      }
+   };
+   // Helper to clean up all pipe handles created so far for this thread.
+   auto CleanupPipes = [&](int iMaxGroup) {
+      // iMaxGroup: 0=none, 1=stdin, 2=stdout, 3=stderr
+      if (iMaxGroup >= 1)
+      {
+         CloseArrayHandle(m_ahChildStdInRead, iCurThread);
+         CloseArrayHandle(m_ahChildStdInWrite, iCurThread);
+      }
+      if (iMaxGroup >= 2)
+      {
+         CloseArrayHandle(m_ahChildStdOutRead, iCurThread);
+         CloseArrayHandle(m_ahChildStdOutWrite, iCurThread);
+      }
+      if (iMaxGroup >= 3)
+      {
+         CloseArrayHandle(m_ahChildStdErrRead, iCurThread);
+         CloseArrayHandle(m_ahChildStdErrWrite, iCurThread);
+      }
+   };
+
    //create std in pipe for writing to child process
    if (!CreatePipe(&m_ahChildStdInRead[iCurThread], &m_ahChildStdInWrite[iCurThread], &vAttrib, 0))
    {
@@ -716,6 +744,7 @@ bool CAnalysisDlg::LaunchAnalyser(CGamePGN vGamePGN, int iCurThread)
    {
       CString sMessage = _T("Failed set up pipe to communicate with analyser.");
       MessageBox(sMessage, _T("PGN Spy"), MB_ICONEXCLAMATION);
+      CleanupPipes(1);
       return false;
    }
 
@@ -724,12 +753,14 @@ bool CAnalysisDlg::LaunchAnalyser(CGamePGN vGamePGN, int iCurThread)
    {
       CString sMessage = _T("Failed to create pipe to communicate with analyser.");
       MessageBox(sMessage, _T("PGN Spy"), MB_ICONEXCLAMATION);
+      CleanupPipes(1);
       return false;
    }
    if (!SetHandleInformation(m_ahChildStdOutRead[iCurThread], HANDLE_FLAG_INHERIT, 0))
    {
       CString sMessage = _T("Failed set up pipe to communicate with analyser.");
       MessageBox(sMessage, _T("PGN Spy"), MB_ICONEXCLAMATION);
+      CleanupPipes(2);
       return false;
    }
 
@@ -738,12 +769,14 @@ bool CAnalysisDlg::LaunchAnalyser(CGamePGN vGamePGN, int iCurThread)
    {
       CString sMessage = _T("Failed to create pipe to communicate with analyser.");
       MessageBox(sMessage, _T("PGN Spy"), MB_ICONEXCLAMATION);
+      CleanupPipes(2);
       return false;
    }
    if (!SetHandleInformation(m_ahChildStdErrRead[iCurThread], HANDLE_FLAG_INHERIT, 0))
    {
       CString sMessage = _T("Failed set up pipe to communicate with analyser.");
       MessageBox(sMessage, _T("PGN Spy"), MB_ICONEXCLAMATION);
+      CleanupPipes(3);
       return false;
    }
 
@@ -776,7 +809,7 @@ bool CAnalysisDlg::LaunchAnalyser(CGamePGN vGamePGN, int iCurThread)
    {
       sCommandLine.ReleaseBuffer();
       DWORD dwError = GetLastError();
-      CString sMessage = _T("Failed to launch analyser.  Please ensure it is in the same folder as PGN Spy, with the file name \"pgn-extract.exe\".");
+      CString sMessage = _T("Failed to launch analyser.  Please ensure it is in the same folder as PGN Spy, with the file name \"uci-analyser.exe\".");
       MessageBox(sMessage, _T("PGN Spy"), MB_ICONEXCLAMATION);
       return false;
    }
