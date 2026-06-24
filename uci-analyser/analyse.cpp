@@ -97,7 +97,6 @@ int main(int argc, char *argv[]) {
 int main(int argc, char *argv[]) {
 #endif
 
-//    Sleep(30000); //to allow attaching the debugger
     bool ok = true;
     int argnum = 1;
     if (argc > 1 && strncmp(argv[argnum], "--", 2) != 0)

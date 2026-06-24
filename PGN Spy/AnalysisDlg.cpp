@@ -690,11 +690,9 @@ void CAnalysisDlg::ReadFromThread(int iThread, CString IN OUT &rsResults, bool I
       if (iBytesAvailable <= 0)
          break; //hit end of pipe
 
-      int iBytesRead = vOutFile.Read(sBuf, 1000);
-      rsResults.Append(CA2T(sBuf, CP_ACP));
-//       if (iBytesRead < 1000) //not needed if we're doing PeekNamedPipe
-//          break; //hit end of pipe
-      ZeroMemory(sBuf, sizeof(sBuf)); //initialise for next time round
+	      int iBytesRead = vOutFile.Read(sBuf, 1000);
+	      rsResults.Append(CA2T(sBuf, CP_ACP));
+	      ZeroMemory(sBuf, sizeof(sBuf)); //initialise for next time round
    }
 }
 
@@ -843,29 +841,6 @@ bool CAnalysisDlg::LaunchAnalyser(CGamePGN vGamePGN, int iCurThread)
 
 bool CAnalysisDlg::ProcessOutput(CString sOutput)
 {
-   if (false)
-   {
-      //debugging code to dump sample xml output to a file
-      CString sFileName = GetTemporaryPGNFilePath(1);
-      sFileName.Replace(_T(".pgn"), _T(".xml"));
-      CFile vFile;
-      if (!vFile.Open(sFileName, CFile::modeCreate | CFile::modeWrite))
-      {
-         CString sMessage = _T("Failed to create temporary output file.");
-         MessageBox(sMessage, _T("PGN Spy"), MB_ICONEXCLAMATION);
-         return false;
-      }
-
-      if (!WriteCStringToFile(vFile, sOutput))
-      {
-         CString sMessage = _T("Failed to write temporary output file.");
-         MessageBox(sMessage, _T("PGN Spy"), MB_ICONEXCLAMATION);
-         vFile.Close();
-         return false;
-      }
-      vFile.Close();
-   }
-
    CGame vGame;
    if (vGame.LoadGame(sOutput))
       m_avGames.Add(vGame);

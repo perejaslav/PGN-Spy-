@@ -1,6 +1,6 @@
-The MIT License (MIT)
+PGN Spy is released under the MIT License
 
-Copyright (c) 2016 MGleason1
+Copyright (c) 2016 Michael Gleason
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,42 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+*********************************************
+
+The evaluation version of CMarkup is provided by specific written permission
+from Ben Bryant at http://www.firstobject.com.  He may be contacted at info@firstobject.com.
+
+*********************************************
+
+uci-analyser is provided by specific written permission from David Barnes.
+This version is slightly modified to be better-suited for use in this project.
+The original version may be found at http://www.cs.kent.ac.uk/people/staff/djb/chessplag/.
+
+David Barnes may be contacted at D.J.Barnes@kent.ac.uk
+http://www.cs.kent.ac.uk/people/staff/djb/
+
+*********************************************
+
+pgn-extract is released under the GNU Public License
+Binaries and source code may be found at https://www.cs.kent.ac.uk/people/staff/djb/pgn-extract/
+
+Copyright (C) 1994-2015 David Barnes
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 1, or (at your option)
+
+any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+
+David Barnes may be contacted as D.J.Barnes@kent.ac.uk
+http://www.cs.kent.ac.uk/people/staff/djb/

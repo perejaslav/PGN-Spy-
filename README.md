@@ -89,7 +89,7 @@ The original legacy notes are still available in `ReadMe.txt` for compatibility 
 
 ## License
 
-This repository keeps the original MIT-style licensing model. See `LICENSE` for details.
+This repository keeps the original MIT-style licensing model. See [`LICENSE`](LICENSE) for details.
 
 ## Credits
 

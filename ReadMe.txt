@@ -4,7 +4,7 @@ this software should not be taken as evidence of engine use without proper stati
 analysis involving comparison to appropriate benchmarks and consideration of any other
 relevant evidence.
 
-Source code can be found at http://github.com/MGleason1/PGN-Spy
+Source code can be found at https://github.com/perejaslav/PGN-Spy-
 
 Before using this software to analyse the games of suspected cheaters, it is recommended
 that you first analyse a large number of games from elite grandmasters.  This will give

@@ -134,8 +134,6 @@ CString GetConvertedPGNFilePath()
    GetTempPath(500, sTempPath);
    GetTempFileName(sTempPath, _T("PGN"), 0, sFilePath);
    return CString(sFilePath);
-//    CTime vTime = CTime::GetCurrentTime();
-//    return theApp.m_sDataFolder + vTime.Format(_T("Temp %y%m%d%H%M%S.pgn");
 }
 
 CString GetTemporaryPGNFilePath(int i)
@@ -145,10 +143,6 @@ CString GetTemporaryPGNFilePath(int i)
    GetTempPath(500, sTempPath);
    GetTempFileName(sTempPath, _T("PGN"), 0, sFilePath);
    return CString(sFilePath);
-//    CTime vTime = CTime::GetCurrentTime();
-//    CString sCounter;
-//    sCounter.Format(_T(" %i.pgn"), i);
-//    return theApp.m_sDataFolder + vTime.Format(_T("Temp %y%m%d%H%M%S") + sCounter;
 }
 
 CString GetDefaultAnalysisResultsFilePath(const CString& sInputFilePath)
